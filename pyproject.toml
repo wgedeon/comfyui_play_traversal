@@ -1,0 +1,15 @@
+[project]
+name = "comfyui_play_traversal"
+description = "Provides a structured model and helper nodes for producing long video sequences on ComfyUI using low vram machines."
+version = "1.0.0"
+license = { file = "LICENSE" }
+dependencies = ["diffusers", "accelerate", "clip_interrogator>=0.6.0", "sentencepiece", "lark", "onnxruntime", "spandrel", "opencv-python", "matplotlib", "peft"]
+
+[project.urls]
+Repository = "https://github.com/wgedeon/comfyui_play_traversal"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "wgedeon"
+DisplayName = "comfyui_play_traversal"
+Icon = ""

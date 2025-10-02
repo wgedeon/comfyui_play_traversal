@@ -1,0 +1,4 @@
+myenv/**
+old_codebase/**
+__pycache__/**
+py/*/__pycache__/**
