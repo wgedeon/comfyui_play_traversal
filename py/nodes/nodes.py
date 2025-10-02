@@ -392,7 +392,7 @@ class fot_SceneBeat:
 
     CATEGORY = CATEGORY
 
-    def construct_scene_beats(self, title, filename_part, duration_secs, positive, negative, images, **kwargs):
+    def construct_scene_beats(self, title, filename_part, duration_secs, positive, negative, images=None, **kwargs):
         scene_beat = {
             "title": title,
             "filename_part": filename_part,
