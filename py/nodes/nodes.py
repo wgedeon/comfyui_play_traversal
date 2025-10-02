@@ -222,7 +222,7 @@ class fot_PlayStart:
         print(f"* sequence_batches = {len(sequence_batches)}")
 
         batch_current = sequence_batches.pop(0)
-        print(f"* batch = {batch_current}")
+        # print(f"* batch = {batch_current}")
 
         beat_current = batch_current["beat"]
         scene_current = batch_current["scene"]
@@ -250,7 +250,7 @@ class fot_PlayData:
             }
         }
 
-    RETURN_TYPES = ("MODEL","VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "CONDITIONING", "CONDITIONING", "SEED",)
+    RETURN_TYPES = ("MODEL","VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "CONDITIONING", "CONDITIONING", "INT",)
     RETURN_NAMES = ("model", "vae", "title", "fps", "width", "height", "duration_secs", "frames_count", "positive", "negative", "seed",)
     FUNCTION = "expose_play_data"
 
