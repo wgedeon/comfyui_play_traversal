@@ -27,22 +27,23 @@ MAX_FLOW_NUM = 5
 any_type = AlwaysEqualProxy("*")
 
 # #############################################################################
-class fot_Play:
-
+# this is a modified comfyui-easy-use:whileLoopStart
+class fot_PlayStart:
     def __init__(self):
         pass
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        inputs = {
             "required": {
+                "data": (any_type,),
                 "model": ("MODEL",),
                 "vae": ("VAE",),
                 "title": ("STRING", {"default": "Play title"}),
                 "positive": ("CONDITIONING",),
                 "negative": ("CONDITIONING",),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
-                "filename_base": ("STRING", {"default": "fot_test_play"}),
+                "filename_base": ("STRING", {"default": "fot_play"}),
                 # TODO how to limit fps to just a well known list
                 "fps":  ("FLOAT", {"default": 20, "min": 1, "max": 100000, "step": 1}),
                 "width":  ("INT", {"default": 480, "min": 1, "max": 100000, "step": 8}),
@@ -53,24 +54,26 @@ class fot_Play:
                 "scene_%d" % i: ("SCENE",) for i in range(1, 3)
             },
             "hidden": {
-                "scene_0": ("SCENE",),
-                "prompt": "PROMPT",
-                "extra_pnginfo": "EXTRA_PNGINFO",
-                "unique_id": "UNIQUE_ID"
+                "do_continue": ("BOOLEAN", {"default": True}),
             }
         }
+        return inputs
 
-    RETURN_TYPES = ("FLOW_CONTROL", "MODEL", "VAE", "PLAY", "SCENE", "SCENE_BEAT", "BATCH",)
-    RETURN_NAMES = ("control", "model", "vae", "play_current", "scene_current", "beat_current", "batch_current",)
+    RETURN_TYPES = ("FLOW_CONTROL", any_type, "MODEL", "VAE", "PLAY", "SCENE", "SCENE_BEAT", "BATCH",)
+    RETURN_NAMES = ("flow", "data", "model", "vae", "play_current", "scene_current", "beat_current", "batch_current",)
     FUNCTION = "play_start"
 
     CATEGORY = CATEGORY
 
-    def play_start(self, model, vae, title, positive, negative, seed, filename_base, fps, width, height,
-                   frames_count_per_batch, scene_0=None, prompt=None, extra_pnginfo=None, unique_id=None,
-                   **kwargs):
+    def play_start(self, data, model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, do_continue=True, **kwargs):
+        print("### while_loop_open")
+        print(f"* do_continue = {do_continue}")
+        print("* data =")
+        print(data)
+        print("\n")
 
         play = {
+            "data": data,
             "model": model,
             "vae": vae,
             "title": title,
@@ -98,103 +101,72 @@ class fot_Play:
 
         logging.info(" == collecting time")
 
+        sequence_batches = []
         duration_secs_play = 0
         index_play = 0
+
         for scene in scenes:
             scene["filename_base"] = filename_base + "_" + scene["filename_part"]
 
             scene_beats_list = scene.get("scene_beats", [])
+            scene["scene_beats"] = None
             frames_count_scene = 0
-            for scene_beats in scene_beats_list:
-                scene_beats["filename_base"] = scene["filename_base"] + "_" + scene_beats["filename_part"]
-                duration_secs_play += scene_beats["duration_secs"]
-                scene_beats["frames_count"] = int(fps * scene_beats["duration_secs"])
-                batch_count = scene_beats["frames_count"] % frames_count_per_batch
-                remaining_count = scene_beats["frames_count"]
+            for scene_beat in scene_beats_list:
+                scene_beat["filename_base"] = scene["filename_base"] + "_" + scene_beat["filename_part"]
+                duration_secs_play += scene_beat["duration_secs"]
+                scene_beat["frames_count"] = int(fps * scene_beat["duration_secs"])
+                batch_count = scene_beat["frames_count"] % frames_count_per_batch
+                remaining_count = scene_beat["frames_count"]
                 last_frame = 0
                 for i in range(0, batch_count):
-                    batch = {
-                        "index": i,
+                    sequence_batch = {
+                        "play": play,
+                        "scene": scene,
+                        "beat": scene_beat,
                         "index_play": index_play,
-                        "filename": scene_beats["filename_base"] + "_" + str(i),
+                        "index": i,
+                        "filename": scene_beat["filename_base"] + "_" + str(i),
                         "frames_count": frames_count_per_batch,
                     }
                     index_play += 1
-                    batch["frames_first"] = last_frame + i * frames_count_per_batch + 1
-                    last_frame = batch["frames_first"] + frames_count_per_batch - 1
-                    batch["frames_last"] = last_frame
+                    sequence_batch["frames_first"] = last_frame + i * frames_count_per_batch + 1
+                    last_frame = sequence_batch["frames_first"] + frames_count_per_batch - 1
+                    sequence_batch["frames_last"] = last_frame
 
-                    batches = scene_beats.get("batches", []) # Use square brackets
-                    batches.append(batch)
+                    sequence_batches.append(sequence_batch)
                     remaining_count = remaining_count - frames_count_per_batch
                 if remaining_count > 0:
                     i = batch_count
-                    batch = {
+                    sequence_batch = {
                         "index": i,
                         "index_play": index_play,
-                        "filename": scene_beats["filename_base"] + "_" + str(i),
+                        "filename": scene_beat["filename_base"] + "_" + str(i),
                         "frames_count": remaining_count,
                     }
                     index_play += 1
-                    batch["frames_first"] = last_frame + i * frames_count_per_batch + 1
-                    last_frame = batch["frames_first"] + remaining_count - 1
-                    batch["frames_last"] = last_frame
-                    batches = scene_beats.get("batches", []) # Use square brackets
-                    batches.append(batch)
+                    sequence_batch["frames_first"] = last_frame + i * frames_count_per_batch + 1
+                    last_frame = sequence_batch["frames_first"] + remaining_count - 1
+                    sequence_batch["frames_last"] = last_frame
+                    sequence_batches.append(sequence_batch)
 
-                frames_count_scene += scene_beats["frames_count"]
+                frames_count_scene += scene_beat["frames_count"]
             scene["frames_count"] = frames_count_scene
 
         frames_count_total = int(fps * duration_secs_play)
 
         play["duration_secs"] = duration_secs_play
         play["frames_count"] = frames_count_total
-        play["scenes"] = scenes
 
         # tmp init test before loop impl
-        scene_current = scenes[0]# first scene
-        beat_current = scene_current["scene_beats"][0] # first beat
-        batch_current = beat_current["batches"][0] # first batch
-
-        return (model, vae, play, scene_current, beat_current, batch_current,)
-
-# this is a modified comfyui-easy-use:whileLoopStart
-class fot_whileLoopStart:
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        inputs = {
-            "required": {
-                "data": (any_type,),
-
-
-                
-            },
-            "optional": {
-            },
-            "hidden": {
-                "do_continue": ("BOOLEAN", {"default": True}),
-            }
-        }
-        return inputs
-
-    RETURN_TYPES = tuple(["FLOW_CONTROL", any_type]) # ByPassTypeTuple(tuple(["FLOW_CONTROL"] + [any_type] * MAX_FLOW_NUM))
-    RETURN_NAMES = tuple(["flow", "data"]) # ByPassTypeTuple(tuple(["flow"] + ["value%d" % i for i in range(MAX_FLOW_NUM)]))
-    FUNCTION = "while_loop_open"
-
-    CATEGORY = CATEGORY
-
-    def while_loop_open(self, data, do_continue=True, **kwargs):
-        print("### while_loop_open")
-        print(f"* do_continue = {do_continue}")
-        print("* data =")
-        print(data)
-        print("\n")
+        batch_current = sequence_batches[0] # first batch
+        beat_current = batch_current["beat"]
+        scene_current = batch_current["scene"]
+        play_current = batch_current["play"]
 
         print("### END while_loop_open")
-        return tuple(["stub", data])
+
+        # return tuple([])
+        return ("stub", data, model, vae, play_current, scene_current, beat_current, batch_current,)
 
 # #############################################################################
 class fot_PlayData:
@@ -214,8 +186,8 @@ class fot_PlayData:
             }
         }
 
-    RETURN_TYPES = ("MODEL","VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "CONDITIONING", "CONDITIONING", "SEED", "SCENE",)
-    RETURN_NAMES = ("model", "vae", "title", "fps", "width", "height", "duration_secs", "frames_count", "positive", "negative", "seed", "scenes",)
+    RETURN_TYPES = ("MODEL","VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "CONDITIONING", "CONDITIONING", "SEED",)
+    RETURN_NAMES = ("model", "vae", "title", "fps", "width", "height", "duration_secs", "frames_count", "positive", "negative", "seed",)
     FUNCTION = "expose_play_data"
 
     CATEGORY = CATEGORY
@@ -225,7 +197,7 @@ class fot_PlayData:
         logging.info("  -  model in play ? " + str("model" in play))
 
         if play is None:
-            return (None,None,None,None,None,None,)
+            return (None,None,None,None,None,None,None,None,None,None,None,)
         else:
             return (
                 play["model"],
@@ -239,7 +211,6 @@ class fot_PlayData:
                 play["positive"],
                 play["negative"],
                 play["seed"],
-                play["scenes"],
             )
 
 # #############################################################################
@@ -313,15 +284,15 @@ class fot_SceneData:
             }
         }
 
-    RETURN_TYPES = ("STRING", "CONDITIONING", "CONDITIONING", "STRING", "INT", "SCENE_BEAT",)
-    RETURN_NAMES = ("title", "positive", "negative", "filename_part", "frames_count", "scene_beats",)
+    RETURN_TYPES = ("STRING", "CONDITIONING", "CONDITIONING", "STRING", "INT",)
+    RETURN_NAMES = ("title", "positive", "negative", "filename_part", "frames_count",)
     FUNCTION = "expose_scene_data"
 
     CATEGORY = CATEGORY
 
     def expose_scene_data(self, scene=None, **kwargs):
         if scene is None:
-            return (None,None,None,None,None,None,)
+            return (None,None,None,None,None,)
         else:
             return (
                 scene["title"],
@@ -329,7 +300,6 @@ class fot_SceneData:
                 scene["negative"],
                 scene["filename_part"],
                 scene["frames_count"],
-                scene["scene_beats"],
             )
 
 # #############################################################################
@@ -391,8 +361,8 @@ class fot_SceneBeatData:
             }
         }
 
-    RETURN_TYPES = ("STRING", "INT", "CONDITIONING", "CONDITIONING", "IMAGE", "BATCH")
-    RETURN_NAMES = ("title", "duration_secs", "positive", "negative", "images", "batches")
+    RETURN_TYPES = ("STRING", "INT", "CONDITIONING", "CONDITIONING", "IMAGE",)
+    RETURN_NAMES = ("title", "duration_secs", "positive", "negative", "images",)
     FUNCTION = "expose_scene_data"
 
     CATEGORY = CATEGORY
@@ -405,7 +375,6 @@ class fot_SceneBeatData:
                 None,
                 None,
                 None,
-                None,
             )
         else:
             return (
@@ -414,7 +383,6 @@ class fot_SceneBeatData:
                 scene_beat["positive"],
                 scene_beat["negative"],
                 scene_beat["images"],
-                scene_beat["batches"],
             )
 
 # #############################################################################
@@ -496,7 +464,7 @@ class fot_PlayContinue:
                 display_id = dynprompt.get_display_node_id(parent_id)
                 display_node = dynprompt.get_node(display_id)
                 class_type = display_node["class_type"]
-                if class_type not in ['fot_forLoopEnd', 'fot_PlayContinue']:
+                if class_type not in ['fot_PlayStart', 'fot_PlayContinue']:
                     parent_ids.append(display_id)
                 if parent_id not in upstream:
                     upstream[parent_id] = []
@@ -529,9 +497,9 @@ class fot_PlayContinue:
         print("### while_loop_close")
         print(f"* data = {data}")
 
-        data += 1
+        data -= 1
         print(f"* updated data = {data}")
-        do_continue = data < 5
+        do_continue = data > 0
         print(f"* do_continue ? {do_continue}")
 
         if not do_continue:
@@ -601,7 +569,7 @@ class fot_PlayContinue:
 
 # #############################################################################
 NODE_CLASS_MAPPINGS = {
-    "fot_Play": fot_Play,
+    "fot_PlayStart": fot_PlayStart,
     "fot_PlayData": fot_PlayData,
     "fot_Scene": fot_Scene,
     "fot_SceneData": fot_SceneData,
@@ -609,11 +577,9 @@ NODE_CLASS_MAPPINGS = {
     "fot_SceneBeatData": fot_SceneBeatData,
     "fot_BatchData": fot_BatchData,
     "fot_PlayContinue": fot_PlayContinue,
-
-    "fot_whileLoopStart": fot_whileLoopStart,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "fot_Play": "Play (Start)",
+    "fot_PlayStart": "Play (Start)",
     "fot_PlayData": "Play Data",
     "fot_Scene": "Scene",
     "fot_SceneData": "Scene Data",
