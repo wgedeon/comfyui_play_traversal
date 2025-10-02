@@ -20,7 +20,9 @@ logger.addHandler(handler)
 
 
 CATEGORY = "Play Traversal (Video)"
+CATEGORY_TEST = "Play Traversal (Video)/test"
 
+MY_CLASS_TYPES = ['fot_PlayStart', 'fot_PlayContinue']
 
 DEFAULT_FLOW_NUM = 2
 MAX_FLOW_NUM = 5
@@ -35,7 +37,7 @@ class fot_test_NoneModel:
     RETURN_TYPES = ("MODEL",)
     RETURN_NAMES = ("model",)
     FUNCTION = "execute"
-    CATEGORY = CATEGORY
+    CATEGORY = CATEGORY_TEST
 
     def execute(self):
         return (None,)
@@ -48,7 +50,7 @@ class fot_test_NoneVAE:
     RETURN_TYPES = ("VAE",)
     RETURN_NAMES = ("vae",)
     FUNCTION = "execute"
-    CATEGORY = CATEGORY
+    CATEGORY = CATEGORY_TEST
 
     def execute(self):
         return (None,)
@@ -61,7 +63,7 @@ class fot_test_NoneConditioning:
     RETURN_TYPES = ("CONDITIONING",)
     RETURN_NAMES = ("cond",)
     FUNCTION = "execute"
-    CATEGORY = CATEGORY
+    CATEGORY = CATEGORY_TEST
 
     def execute(self):
         return (None,)
@@ -74,7 +76,7 @@ class fot_test_NoneImage:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("images",)
     FUNCTION = "execute"
-    CATEGORY = CATEGORY
+    CATEGORY = CATEGORY_TEST
 
     def execute(self):
         return (None,)
@@ -222,11 +224,19 @@ class fot_PlayStart:
         print(f"* sequence_batches = {len(sequence_batches)}")
 
         batch_current = sequence_batches.pop(0)
-        # print(f"* batch = {batch_current}")
+        batch_index_play = batch_current["index_play"]
+        print(f"* batch = {batch_index_play}")
 
         beat_current = batch_current["beat"]
+        beat_title = beat_current["title"]
+        print(f"* beat = {beat_title}")
+
         scene_current = batch_current["scene"]
+        scene_title = scene_current["title"]
+        print(f"* scene_current = {scene_title}")
         play_current = batch_current["play"]
+        play_title = play_current["title"]
+        print(f"* play = {play_title}")
 
         print("### END play_start")
 
@@ -510,7 +520,7 @@ class fot_PlayContinue:
 
     RETURN_TYPES = tuple([any_type]) # ByPassTypeTuple(tuple([any_type] * MAX_FLOW_NUM))
     RETURN_NAMES = tuple(["data"]) # ByPassTypeTuple(tuple(["value%d" % i for i in range(MAX_FLOW_NUM)]))
-    FUNCTION = "while_loop_close"
+    FUNCTION = "play_continue"
 
     CATEGORY = CATEGORY
 
@@ -525,7 +535,7 @@ class fot_PlayContinue:
                 display_id = dynprompt.get_display_node_id(parent_id)
                 display_node = dynprompt.get_node(display_id)
                 class_type = display_node["class_type"]
-                if class_type not in ['fot_PlayStart', 'fot_PlayContinue']:
+                if class_type not in MY_CLASS_TYPES:
                     parent_ids.append(display_id)
                 if parent_id not in upstream:
                     upstream[parent_id] = []
@@ -554,7 +564,7 @@ class fot_PlayContinue:
                 contained[child_id] = True
                 self.collect_contained(child_id, upstream, contained)
 
-    def while_loop_close(self, flow, data, sequence_batches, dynprompt=None, unique_id=None,**kwargs):
+    def play_continue(self, flow, data, sequence_batches, dynprompt=None, unique_id=None,**kwargs):
         print("### fot_PlayContinue")
         print(f"* data = {data}")
 
@@ -616,13 +626,9 @@ class fot_PlayContinue:
         new_open = graph.lookup_node(open_node)
         new_open.set_input("data", data)
         new_open.set_input("sequence_batches", sequence_batches)
-        # for i in range(MAX_FLOW_NUM):
-        #     key = "initial_value%d" % i
-        #     new_open.set_input(key, kwargs.get(key, None))
         my_clone = graph.lookup_node("Recurse")
-        # result = map(lambda x: my_clone.out(x), range(MAX_FLOW_NUM))
 
-        print("### END while_loop_close")
+        print("### END fot_PlayContinue")
         return {
             "result": tuple([my_clone.out(0)]),
             "expand": graph.finalize(),
