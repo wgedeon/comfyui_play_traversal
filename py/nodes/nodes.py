@@ -4,6 +4,7 @@ from nodes import PreviewImage, SaveImage, NODE_CLASS_MAPPINGS as ALL_NODE_CLASS
 from ..libs.utils import AlwaysEqualProxy, ByPassTypeTuple, cleanGPUUsedForce, compare_revision
 from datetime import datetime
 import json
+import math
 
 try: # flow
     from comfy_execution.graph_utils import GraphBuilder, is_link
@@ -26,6 +27,58 @@ MAX_FLOW_NUM = 5
 
 any_type = AlwaysEqualProxy("*")
 
+class fot_test_NoneModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {}
+
+    RETURN_TYPES = ("MODEL",)
+    RETURN_NAMES = ("model",)
+    FUNCTION = "execute"
+    CATEGORY = CATEGORY
+
+    def execute(self):
+        return (None,)
+
+class fot_test_NoneVAE:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {}
+
+    RETURN_TYPES = ("VAE",)
+    RETURN_NAMES = ("vae",)
+    FUNCTION = "execute"
+    CATEGORY = CATEGORY
+
+    def execute(self):
+        return (None,)
+
+class fot_test_NoneConditioning:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {}
+
+    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("cond",)
+    FUNCTION = "execute"
+    CATEGORY = CATEGORY
+
+    def execute(self):
+        return (None,)
+
+class fot_test_NoneImage:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {}
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
+    FUNCTION = "execute"
+    CATEGORY = CATEGORY
+
+    def execute(self):
+        return (None,)
+
 # #############################################################################
 # this is a modified comfyui-easy-use:whileLoopStart
 class fot_PlayStart:
@@ -36,7 +89,6 @@ class fot_PlayStart:
     def INPUT_TYPES(cls):
         inputs = {
             "required": {
-                "data": (any_type,),
                 "model": ("MODEL",),
                 "vae": ("VAE",),
                 "title": ("STRING", {"default": "Play title"}),
@@ -51,122 +103,134 @@ class fot_PlayStart:
                 "frames_count_per_batch":  ("INT", {"default": 41, "min": 1, "max": 100000, "step": 1}),
             },
             "optional": {
-                "scene_%d" % i: ("SCENE",) for i in range(1, 3)
+                "data": (any_type,),
             },
             "hidden": {
+                "sequence_batches": (any_type,),
                 "do_continue": ("BOOLEAN", {"default": True}),
             }
         }
+        for i in range(1, 3):
+            inputs["optional"]["scene_%d" % i] = ("SCENE",)
         return inputs
 
-    RETURN_TYPES = ("FLOW_CONTROL", any_type, "MODEL", "VAE", "PLAY", "SCENE", "SCENE_BEAT", "BATCH",)
-    RETURN_NAMES = ("flow", "data", "model", "vae", "play_current", "scene_current", "beat_current", "batch_current",)
+    RETURN_TYPES = ("FLOW_CONTROL", "BATCH", any_type, "MODEL", "VAE", "PLAY", "SCENE", "SCENE_BEAT", "BATCH",)
+    RETURN_NAMES = ("flow", "sequence_batches", "data", "model", "vae", "play_current", "scene_current", "beat_current", "batch_current",)
     FUNCTION = "play_start"
 
     CATEGORY = CATEGORY
 
-    def play_start(self, data, model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, do_continue=True, **kwargs):
-        print("### while_loop_open")
+    def play_start(self, model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, data=None, sequence_batches=None, do_continue=True, **kwargs):
+        print("### fot_PlayStart")
         print(f"* do_continue = {do_continue}")
-        print("* data =")
-        print(data)
-        print("\n")
+        print(f"* data = {data}")
 
-        play = {
-            "data": data,
-            "model": model,
-            "vae": vae,
-            "title": title,
-            "filename_base": filename_base,
-            "fps": fps,
-            "width": width,
-            "height": height,
-            "frames_count_per_batch": frames_count_per_batch,
-            "positive": positive,
-            "negative": negative,
-            "seed": seed,
-        }
+        if sequence_batches is None or len(sequence_batches) == 0:
+            # we're just starting, make data into sequence
+            print(f"* will construct new play")
 
-        scenes = [kwargs.get("scene_%d" % i, None) for i in range(1, 3)]
-        
-        # ignoring trailing Nuns
-        while scenes and scenes[-1] is None:
-            scenes.pop()
-        # need at least one remaining
-        if len(scenes) == 0:
-            raise ValueError("At least one scenes item is required")
-        # Check for gaps (no Nuns in the middle)
-        if None in scenes:
-            raise ValueError("Found gap in scenes, please defragment!")
+            play = {
+                "data": data,
+                "model": model,
+                "vae": vae,
+                "title": title,
+                "filename_base": filename_base,
+                "fps": fps,
+                "width": width,
+                "height": height,
+                "frames_count_per_batch": frames_count_per_batch,
+                "positive": positive,
+                "negative": negative,
+                "seed": seed,
+            }
 
-        logging.info(" == collecting time")
+            scenes = [kwargs.get("scene_%d" % i, None) for i in range(1, 3)]
+            
+            # ignoring trailing Nuns
+            while scenes and scenes[-1] is None:
+                scenes.pop()
+            # need at least one remaining
+            if len(scenes) == 0:
+                raise ValueError("At least one scenes item is required")
+            # Check for gaps (no Nuns in the middle)
+            if None in scenes:
+                raise ValueError("Found gap in scenes, please defragment!")
 
-        sequence_batches = []
-        duration_secs_play = 0
-        index_play = 0
+            logging.info(" == traversing tree for sequencing")
 
-        for scene in scenes:
-            scene["filename_base"] = filename_base + "_" + scene["filename_part"]
+            sequence_batches = []
+            duration_secs_play = 0
+            index_play = 0
 
-            scene_beats_list = scene.get("scene_beats", [])
-            scene["scene_beats"] = None
-            frames_count_scene = 0
-            for scene_beat in scene_beats_list:
-                scene_beat["filename_base"] = scene["filename_base"] + "_" + scene_beat["filename_part"]
-                duration_secs_play += scene_beat["duration_secs"]
-                scene_beat["frames_count"] = int(fps * scene_beat["duration_secs"])
-                batch_count = scene_beat["frames_count"] % frames_count_per_batch
-                remaining_count = scene_beat["frames_count"]
-                last_frame = 0
-                for i in range(0, batch_count):
-                    sequence_batch = {
-                        "play": play,
-                        "scene": scene,
-                        "beat": scene_beat,
-                        "index_play": index_play,
-                        "index": i,
-                        "filename": scene_beat["filename_base"] + "_" + str(i),
-                        "frames_count": frames_count_per_batch,
-                    }
-                    index_play += 1
-                    sequence_batch["frames_first"] = last_frame + i * frames_count_per_batch + 1
-                    last_frame = sequence_batch["frames_first"] + frames_count_per_batch - 1
-                    sequence_batch["frames_last"] = last_frame
+            for scene in scenes:
+                scene["filename_base"] = filename_base + "_" + scene["filename_part"]
 
-                    sequence_batches.append(sequence_batch)
-                    remaining_count = remaining_count - frames_count_per_batch
-                if remaining_count > 0:
-                    i = batch_count
-                    sequence_batch = {
-                        "index": i,
-                        "index_play": index_play,
-                        "filename": scene_beat["filename_base"] + "_" + str(i),
-                        "frames_count": remaining_count,
-                    }
-                    index_play += 1
-                    sequence_batch["frames_first"] = last_frame + i * frames_count_per_batch + 1
-                    last_frame = sequence_batch["frames_first"] + remaining_count - 1
-                    sequence_batch["frames_last"] = last_frame
-                    sequence_batches.append(sequence_batch)
+                scene_beats_list = scene.get("scene_beats", [])
+                frames_count_scene = 0
+                for scene_beat in scene_beats_list:
+                    scene_beat["filename_base"] = scene["filename_base"] + "_" + scene_beat["filename_part"]
+                    duration_secs_play += scene_beat["duration_secs"]
+                    scene_beat["frames_count"] = int(fps * scene_beat["duration_secs"])
+                    batch_count = math.floor(scene_beat["frames_count"] / frames_count_per_batch)
+                    remaining_count = scene_beat["frames_count"]
+                    last_frame = 0
+                    for i in range(0, batch_count):
+                        sequence_batch = {
+                            "play": play,
+                            "scene": scene,
+                            "beat": scene_beat,
+                            "index_play": index_play,
+                            "index": i,
+                            "filename": scene_beat["filename_base"] + "_" + str(i) + "_" + str(index_play),
+                            "frames_count": frames_count_per_batch,
+                        }
+                        index_play += 1
+                        sequence_batch["frames_first"] = last_frame + 1
+                        last_frame = sequence_batch["frames_first"] + frames_count_per_batch - 1
+                        sequence_batch["frames_last"] = last_frame
 
-                frames_count_scene += scene_beat["frames_count"]
-            scene["frames_count"] = frames_count_scene
+                        sequence_batches.append(sequence_batch)
+                        remaining_count = remaining_count - frames_count_per_batch
+                    if remaining_count > 0:
+                        i = batch_count
+                        sequence_batch = {
+                            "play": play,
+                            "scene": scene,
+                            "beat": scene_beat,
+                            "index_play": index_play,
+                            "index": i,
+                            "filename": scene_beat["filename_base"] + "_" + str(i) + "_" + str(index_play),
+                            "frames_count": remaining_count,
+                        }
+                        index_play += 1
+                        sequence_batch["frames_first"] = last_frame + 1
+                        last_frame = sequence_batch["frames_first"] + remaining_count - 1
+                        sequence_batch["frames_last"] = last_frame
+                        sequence_batches.append(sequence_batch)
 
-        frames_count_total = int(fps * duration_secs_play)
+                    frames_count_scene += scene_beat["frames_count"]
 
-        play["duration_secs"] = duration_secs_play
-        play["frames_count"] = frames_count_total
+                scene["frames_count"] = frames_count_scene
 
-        # tmp init test before loop impl
-        batch_current = sequence_batches[0] # first batch
+            frames_count_total = int(fps * duration_secs_play)
+
+            play["duration_secs"] = duration_secs_play
+            play["frames_count"] = frames_count_total
+        else:
+            print(f"* will continue existing play")
+
+        print(f"* sequence_batches = {len(sequence_batches)}")
+
+        batch_current = sequence_batches.pop(0)
+        print(f"* batch = {batch_current}")
+
         beat_current = batch_current["beat"]
         scene_current = batch_current["scene"]
         play_current = batch_current["play"]
 
-        print("### END while_loop_open")
+        print("### END play_start")
 
-        # return tuple([])
-        return ("stub", data, model, vae, play_current, scene_current, beat_current, batch_current,)
+        return tuple(["stub", sequence_batches, data, model, vae, play_current, scene_current, beat_current, batch_current])
 
 # #############################################################################
 class fot_PlayData:
@@ -193,9 +257,6 @@ class fot_PlayData:
     CATEGORY = CATEGORY
 
     def expose_play_data(self, play=None, **kwargs):
-        logging.info("GOT PLAY:")
-        logging.info("  -  model in play ? " + str("model" in play))
-
         if play is None:
             return (None,None,None,None,None,None,None,None,None,None,None,)
         else:
@@ -318,9 +379,10 @@ class fot_SceneBeat:
                 "duration_secs": ("INT", {"default": 1, "min": 1, "max": 100000, "step": 1}),
                 "positive": ("CONDITIONING",),
                 "negative": ("CONDITIONING",),
+            },
+            "optional": {
                 "images": ("IMAGE",),
             },
-            "optional": {},
             "hidden": {}
         }
 
@@ -331,7 +393,6 @@ class fot_SceneBeat:
     CATEGORY = CATEGORY
 
     def construct_scene_beats(self, title, filename_part, duration_secs, positive, negative, images, **kwargs):
-        batches = []
         scene_beat = {
             "title": title,
             "filename_part": filename_part,
@@ -339,7 +400,6 @@ class fot_SceneBeat:
             "positive": positive,
             "negative": negative,
             "images": images,
-            "batches": batches
         }
         return (scene_beat,)
 
@@ -432,9 +492,10 @@ class fot_PlayContinue:
         inputs = {
             "required": {
                 "flow": ("FLOW_CONTROL", {"rawLink": True}),
-                "data": (any_type,),
+                "sequence_batches": (any_type,),
             },
             "optional": {
+                "data": (any_type,),
             },
             "hidden": {
                 "do_continue": ("BOOLEAN", {}),
@@ -493,20 +554,21 @@ class fot_PlayContinue:
                 contained[child_id] = True
                 self.collect_contained(child_id, upstream, contained)
 
-    def while_loop_close(self, flow, data, dynprompt=None, unique_id=None,**kwargs):
-        print("### while_loop_close")
+    def while_loop_close(self, flow, data, sequence_batches, dynprompt=None, unique_id=None,**kwargs):
+        print("### fot_PlayContinue")
         print(f"* data = {data}")
 
-        data -= 1
-        print(f"* updated data = {data}")
-        do_continue = data > 0
+        open_node = flow[0]
+
+        do_continue = not sequence_batches is None and len(sequence_batches) > 0
         print(f"* do_continue ? {do_continue}")
 
         if not do_continue:
             # We're done with the loop
             values = [data]
-            # for i in range(MAX_FLOW_NUM):
-            #     values.append(kwargs.get("initial_value%d" % i, None))
+            # new_open = graph.lookup_node(open_node)
+            # new_open.set_input("data", data)
+            # new_open.set_input("sequence_batches", sequence_batches)            
             return tuple(values)
 
         # We want to loop
@@ -533,7 +595,6 @@ class fot_PlayContinue:
         graph = GraphBuilder()
         self.explore_output_nodes(dynprompt, upstream, output_nodes, parent_ids)
         contained = {}
-        open_node = flow[0]
         self.collect_contained(open_node, upstream, contained)
         contained[unique_id] = True
         contained[open_node] = True
@@ -554,6 +615,7 @@ class fot_PlayContinue:
 
         new_open = graph.lookup_node(open_node)
         new_open.set_input("data", data)
+        new_open.set_input("sequence_batches", sequence_batches)
         # for i in range(MAX_FLOW_NUM):
         #     key = "initial_value%d" % i
         #     new_open.set_input(key, kwargs.get(key, None))
@@ -577,6 +639,11 @@ NODE_CLASS_MAPPINGS = {
     "fot_SceneBeatData": fot_SceneBeatData,
     "fot_BatchData": fot_BatchData,
     "fot_PlayContinue": fot_PlayContinue,
+
+    "fot_test_NoneModel": fot_test_NoneModel,
+    "fot_test_NoneVAE": fot_test_NoneVAE,
+    "fot_test_NoneConditioning": fot_test_NoneConditioning,
+    "fot_test_NoneImage": fot_test_NoneImage,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_PlayStart": "Play (Start)",
