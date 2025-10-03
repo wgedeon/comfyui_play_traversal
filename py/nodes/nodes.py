@@ -580,7 +580,6 @@ class fot_SceneBeat:
                 "negative": ("CONDITIONING",),
             },
             "optional": {
-                "images": ("IMAGE",),
             },
             "hidden": {}
         }
@@ -591,14 +590,13 @@ class fot_SceneBeat:
 
     CATEGORY = CATEGORY
 
-    def construct_scene_beats(self, title, filename_part, duration_secs, positive, negative, images=None, **kwargs):
+    def construct_scene_beats(self, title, filename_part, duration_secs, positive, negative, **kwargs):
         scene_beat = {
             "title": title,
             "filename_part": filename_part,
             "duration_secs": duration_secs,
             "positive": positive,
             "negative": negative,
-            "images": images,
         }
         return (scene_beat,)
 
@@ -620,8 +618,8 @@ class fot_SceneBeatData:
             }
         }
 
-    RETURN_TYPES = ("STRING", "INT", "CONDITIONING", "CONDITIONING", "IMAGE",)
-    RETURN_NAMES = ("title", "duration_secs", "positive", "negative", "images",)
+    RETURN_TYPES = ("STRING", "INT", "CONDITIONING", "CONDITIONING",)
+    RETURN_NAMES = ("title", "duration_secs", "positive", "negative",)
     FUNCTION = "expose_scene_data"
 
     CATEGORY = CATEGORY
@@ -641,7 +639,6 @@ class fot_SceneBeatData:
                 scene_beat["duration_secs"],
                 scene_beat["positive"],
                 scene_beat["negative"],
-                scene_beat["images"],
             )
 
 # #############################################################################
