@@ -5,6 +5,7 @@ from ..libs.utils import AlwaysEqualProxy, ByPassTypeTuple, cleanGPUUsedForce, c
 from datetime import datetime
 import json
 import math
+import copy
 
 try: # flow
     from comfy_execution.graph_utils import GraphBuilder, is_link
@@ -20,6 +21,7 @@ logger.addHandler(handler)
 
 
 CATEGORY = "Play Traversal (Video)"
+CATEGORY_LATENT = "Play Traversal (Video)/latent"
 CATEGORY_TEST = "Play Traversal (Video)/test"
 
 MY_CLASS_TYPES = ['fot_PlayStart', 'fot_PlayContinue']
@@ -280,6 +282,8 @@ class fot_PlayStart:
         else:
             print(f"* will continue existing play")
 
+        batch_current["latent_previous"] = latent_previous
+
         batch_index_play = batch_current["index_play"]
         print(f"* batch_current = {batch_index_play}")
         beat_title = beat_current["title"]
@@ -393,6 +397,8 @@ class fot_PlayContinue:
         batch_current = sequence_batches.pop(0)
         batch_index_play = batch_current["index_play"]
         print(f"* batch_current = {batch_index_play}")
+        if not latent_previous is None:
+            batch_current["latent_previous"] = latent_previous
         
         beat_current = batch_current["beat"]
         beat_title = beat_current["title"]
@@ -675,6 +681,34 @@ class fot_BatchData:
                 batch["filename"],
             )
 
+# this is a modified RES4LYF:latent_transfer_state_info
+class fot_LatentTransferStateInfo:
+    def __init__(self):
+        pass
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "latent_to":   ("LATENT", ),      
+            },
+            "optional": {
+                "latent_from": ("LATENT", ),
+            }
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("latent",)
+    FUNCTION     = "main"
+    CATEGORY     = CATEGORY_LATENT
+
+    def main(self, latent_to, latent_from=None):
+        #if 'state_info' not in latent:
+        #    latent['state_info'] = {}
+        if latent_from is None:
+            return (latent_to,)
+        else:
+            latent_to['state_info'] = copy.deepcopy(latent_from['state_info'])
+            return (latent_to,)
 
 # #############################################################################
 NODE_CLASS_MAPPINGS = {
@@ -686,6 +720,8 @@ NODE_CLASS_MAPPINGS = {
     "fot_SceneBeatData": fot_SceneBeatData,
     "fot_BatchData": fot_BatchData,
     "fot_PlayContinue": fot_PlayContinue,
+
+    "fot_LatentTransferStateInfo": fot_LatentTransferStateInfo,
 
     "fot_test_NoneModel": fot_test_NoneModel,
     "fot_test_NoneVAE": fot_test_NoneVAE,
@@ -701,4 +737,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_SceneBeatData": "Scene-Beat Data",
     "fot_BatchData": "Batch Data",
     "fot_PlayContinue": "Play (Continue)",
+
+    "fot_LatentTransferStateInfo": "Latent Transfer State Info (optional)"
 }
