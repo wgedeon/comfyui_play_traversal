@@ -29,6 +29,136 @@ MAX_FLOW_NUM = 5
 
 any_type = AlwaysEqualProxy("*")
 
+
+def explore_upstream(node_id, dynprompt, upstream, parent_ids):
+    node_info = dynprompt.get_node(node_id)
+    if "inputs" not in node_info:
+        return
+
+    for k, v in node_info["inputs"].items():
+        if is_link(v):
+            parent_id = v[0]
+            display_id = dynprompt.get_display_node_id(parent_id)
+            display_node = dynprompt.get_node(display_id)
+            class_type = display_node["class_type"]
+            if class_type not in MY_CLASS_TYPES:
+                parent_ids.append(display_id)
+            if parent_id not in upstream:
+                upstream[parent_id] = []
+                explore_upstream(parent_id, dynprompt, upstream, parent_ids)
+
+            upstream[parent_id].append(node_id)
+
+def explore_output_nodes(dynprompt, upstream, output_nodes, parent_ids):
+    for parent_id in upstream:
+        display_id = dynprompt.get_display_node_id(parent_id)
+        for output_id in output_nodes:
+            id = output_nodes[output_id][0]
+            if id in parent_ids and display_id == id and output_id not in upstream[parent_id]:
+                if '.' in parent_id:
+                    arr = parent_id.split('.')
+                    arr[len(arr)-1] = output_id
+                    upstream[parent_id].append('.'.join(arr))
+                else:
+                    upstream[parent_id].append(output_id)
+
+def collect_contained(node_id, upstream, contained):
+    if node_id not in upstream:
+        return
+    for child_id in upstream[node_id]:
+        if child_id not in contained:
+            contained[child_id] = True
+            collect_contained(child_id, upstream, contained)
+
+def construct_sequence_batches(model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, scenes, data=None):
+    play = {
+        "data": data,
+        "model": model,
+        "vae": vae,
+        "title": title,
+        "filename_base": filename_base,
+        "fps": fps,
+        "width": width,
+        "height": height,
+        "frames_count_per_batch": frames_count_per_batch,
+        "positive": positive,
+        "negative": negative,
+        "seed": seed,
+    }
+    
+    # ignoring trailing Nuns
+    while scenes and scenes[-1] is None:
+        scenes.pop()
+    # need at least one remaining
+    if len(scenes) == 0:
+        raise ValueError("At least one scenes item is required")
+    # Check for gaps (no Nuns in the middle)
+    if None in scenes:
+        raise ValueError("Found gap in scenes, please defragment!")
+
+    logging.info(" == traversing tree for sequencing")
+
+    sequence_batches = []
+    duration_secs_play = 0
+    index_play = 0
+
+    for scene in scenes:
+        scene["filename_base"] = filename_base + "_" + scene["filename_part"]
+
+        scene_beats_list = scene.get("scene_beats", [])
+        frames_count_scene = 0
+        for scene_beat in scene_beats_list:
+            scene_beat["filename_base"] = scene["filename_base"] + "_" + scene_beat["filename_part"]
+            duration_secs_play += scene_beat["duration_secs"]
+            scene_beat["frames_count"] = int(fps * scene_beat["duration_secs"])
+            batch_count = math.floor(scene_beat["frames_count"] / frames_count_per_batch)
+            remaining_count = scene_beat["frames_count"]
+            last_frame = 0
+            for i in range(0, batch_count):
+                sequence_batch = {
+                    "play": play,
+                    "scene": scene,
+                    "beat": scene_beat,
+                    "index_play": index_play,
+                    "index": i,
+                    "filename": scene_beat["filename_base"] + "_" + str(i) + "_" + str(index_play),
+                    "frames_count": frames_count_per_batch,
+                }
+                index_play += 1
+                sequence_batch["frames_first"] = last_frame + 1
+                last_frame = sequence_batch["frames_first"] + frames_count_per_batch - 1
+                sequence_batch["frames_last"] = last_frame
+
+                sequence_batches.append(sequence_batch)
+                remaining_count = remaining_count - frames_count_per_batch
+            if remaining_count > 0:
+                i = batch_count
+                sequence_batch = {
+                    "play": play,
+                    "scene": scene,
+                    "beat": scene_beat,
+                    "index_play": index_play,
+                    "index": i,
+                    "filename": scene_beat["filename_base"] + "_" + str(i) + "_" + str(index_play),
+                    "frames_count": remaining_count,
+                }
+                index_play += 1
+                sequence_batch["frames_first"] = last_frame + 1
+                last_frame = sequence_batch["frames_first"] + remaining_count - 1
+                sequence_batch["frames_last"] = last_frame
+                sequence_batches.append(sequence_batch)
+
+            frames_count_scene += scene_beat["frames_count"]
+
+        scene["frames_count"] = frames_count_scene
+
+    frames_count_total = int(fps * duration_secs_play)
+
+    play["duration_secs"] = duration_secs_play
+    play["frames_count"] = frames_count_total
+
+    return sequence_batches
+
 class fot_test_NoneModel:
     @classmethod
     def INPUT_TYPES(s):
@@ -109,138 +239,191 @@ class fot_PlayStart:
             },
             "hidden": {
                 "sequence_batches": (any_type,),
+                "play_current": ("PLAY",),
+                "scene_current": ("SCENE",),
+                "beat_current": ("SCENE_BEAT",), 
+                "batch_current": ("BATCH",),
+                "latent_previous": ("LATENT", {}),
                 "do_continue": ("BOOLEAN", {"default": True}),
+                "flow": ("FLOW_CONTROL", {"rawLink": True}),
+                "dynprompt": "DYNPROMPT",
+                "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
             }
         }
         for i in range(1, 3):
             inputs["optional"]["scene_%d" % i] = ("SCENE",)
         return inputs
 
-    RETURN_TYPES = ("FLOW_CONTROL", "BATCH", any_type, "MODEL", "VAE", "PLAY", "SCENE", "SCENE_BEAT", "BATCH",)
-    RETURN_NAMES = ("flow", "sequence_batches", "data", "model", "vae", "play_current", "scene_current", "beat_current", "batch_current",)
+    RETURN_TYPES = ("FLOW_CONTROL", "BATCH", any_type, "MODEL", "VAE", "PLAY", "SCENE", "SCENE_BEAT", "BATCH", "LATENT",)
+    RETURN_NAMES = ("flow", "sequence_batches", "data", "model", "vae", "play_current", "scene_current", "beat_current", "batch_current", "latent_previous")
     FUNCTION = "play_start"
 
     CATEGORY = CATEGORY
 
-    def play_start(self, model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, data=None, sequence_batches=None, do_continue=True, **kwargs):
-        print("### fot_PlayStart")
-        print(f"* do_continue = {do_continue}")
-        print(f"* data = {data}")
+    def play_start(self, model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, data=None, latent_previous=None, sequence_batches=None, play_current=None, scene_current=None, beat_current=None, batch_current=None, do_continue=True, flow=None, dynprompt=None, unique_id=None, **kwargs):
+        print("\n>> fot_PlayStart")
+        print(f"* do_continue ? {do_continue}")
+        # print(f"* data = {data}")
+        print(f"* sequence_batches ? {None if sequence_batches is None else len(sequence_batches)}")
 
-        if sequence_batches is None or len(sequence_batches) == 0:
+        if batch_current is None:
             # we're just starting, make data into sequence
             print(f"* will construct new play")
-
-            play = {
-                "data": data,
-                "model": model,
-                "vae": vae,
-                "title": title,
-                "filename_base": filename_base,
-                "fps": fps,
-                "width": width,
-                "height": height,
-                "frames_count_per_batch": frames_count_per_batch,
-                "positive": positive,
-                "negative": negative,
-                "seed": seed,
-            }
-
             scenes = [kwargs.get("scene_%d" % i, None) for i in range(1, 3)]
-            
-            # ignoring trailing Nuns
-            while scenes and scenes[-1] is None:
-                scenes.pop()
-            # need at least one remaining
-            if len(scenes) == 0:
-                raise ValueError("At least one scenes item is required")
-            # Check for gaps (no Nuns in the middle)
-            if None in scenes:
-                raise ValueError("Found gap in scenes, please defragment!")
+            sequence_batches = construct_sequence_batches(model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, scenes, data=None)
 
-            logging.info(" == traversing tree for sequencing")
-
-            sequence_batches = []
-            duration_secs_play = 0
-            index_play = 0
-
-            for scene in scenes:
-                scene["filename_base"] = filename_base + "_" + scene["filename_part"]
-
-                scene_beats_list = scene.get("scene_beats", [])
-                frames_count_scene = 0
-                for scene_beat in scene_beats_list:
-                    scene_beat["filename_base"] = scene["filename_base"] + "_" + scene_beat["filename_part"]
-                    duration_secs_play += scene_beat["duration_secs"]
-                    scene_beat["frames_count"] = int(fps * scene_beat["duration_secs"])
-                    batch_count = math.floor(scene_beat["frames_count"] / frames_count_per_batch)
-                    remaining_count = scene_beat["frames_count"]
-                    last_frame = 0
-                    for i in range(0, batch_count):
-                        sequence_batch = {
-                            "play": play,
-                            "scene": scene,
-                            "beat": scene_beat,
-                            "index_play": index_play,
-                            "index": i,
-                            "filename": scene_beat["filename_base"] + "_" + str(i) + "_" + str(index_play),
-                            "frames_count": frames_count_per_batch,
-                        }
-                        index_play += 1
-                        sequence_batch["frames_first"] = last_frame + 1
-                        last_frame = sequence_batch["frames_first"] + frames_count_per_batch - 1
-                        sequence_batch["frames_last"] = last_frame
-
-                        sequence_batches.append(sequence_batch)
-                        remaining_count = remaining_count - frames_count_per_batch
-                    if remaining_count > 0:
-                        i = batch_count
-                        sequence_batch = {
-                            "play": play,
-                            "scene": scene,
-                            "beat": scene_beat,
-                            "index_play": index_play,
-                            "index": i,
-                            "filename": scene_beat["filename_base"] + "_" + str(i) + "_" + str(index_play),
-                            "frames_count": remaining_count,
-                        }
-                        index_play += 1
-                        sequence_batch["frames_first"] = last_frame + 1
-                        last_frame = sequence_batch["frames_first"] + remaining_count - 1
-                        sequence_batch["frames_last"] = last_frame
-                        sequence_batches.append(sequence_batch)
-
-                    frames_count_scene += scene_beat["frames_count"]
-
-                scene["frames_count"] = frames_count_scene
-
-            frames_count_total = int(fps * duration_secs_play)
-
-            play["duration_secs"] = duration_secs_play
-            play["frames_count"] = frames_count_total
+            batch_current = sequence_batches.pop(0)
+            beat_current = batch_current["beat"]
+            scene_current = batch_current["scene"]
+            play_current = batch_current["play"]
         else:
             print(f"* will continue existing play")
 
-        print(f"* sequence_batches = {len(sequence_batches)}")
+        batch_index_play = batch_current["index_play"]
+        print(f"* batch_current = {batch_index_play}")
+        beat_title = beat_current["title"]
+        print(f"* beat_current = {beat_title}")
+        scene_title = scene_current["title"]
+        print(f"* scene_current = {scene_title}")
+        play_title = play_current["title"]
+        print(f"* play_current = {play_title}")
+
+        print(">> END play_start")
+
+        return tuple(["stub", sequence_batches, data, model, vae, play_current, scene_current, beat_current, batch_current])
+
+
+# #############################################################################
+# this is a modified comfyui-easy-use:whileLoopEnd
+class fot_PlayContinue:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = {
+            "required": {
+                "flow": ("FLOW_CONTROL", {"rawLink": True}),
+                "sequence_batches": (any_type,),
+                "latent_previous": ("LATENT", {}),
+            },
+            "optional": {
+                "data": (any_type,),
+            },
+            "hidden": {
+                "do_continue": ("BOOLEAN", {}),
+                "dynprompt": "DYNPROMPT",
+                "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+            }
+        }
+        # for i in range(MAX_FLOW_NUM):
+        #     inputs["optional"]["initial_value%d" % i] = (any_type,)
+        return inputs
+
+    RETURN_TYPES = tuple([any_type]) # ByPassTypeTuple(tuple([any_type] * MAX_FLOW_NUM))
+    RETURN_NAMES = tuple(["data"]) # ByPassTypeTuple(tuple(["value%d" % i for i in range(MAX_FLOW_NUM)]))
+    FUNCTION = "play_continue"
+
+    CATEGORY = CATEGORY
+
+    def play_continue(self, flow, sequence_batches, latent_previous=None, data=None, dynprompt=None, unique_id=None,**kwargs):
+        print("\n|| fot_PlayContinue")
+        # print(f"  unique_id = {unique_id}")
+        # print(f"* data = {data}")
+        print(f"* sequence_batches ? {None if sequence_batches is None else len(sequence_batches)}")
+
+        open_node = flow[0]
+        graph = GraphBuilder()
+        this_node = dynprompt.get_node(unique_id)
+
+        do_continue = not sequence_batches is None and len(sequence_batches) > 0
+        print(f"* do_continue ? {do_continue}")
+
+        if not do_continue:
+            # We're done with the loop
+            values = [data]
+
+            return tuple(values)
+        
+        # We want to loop
+        upstream = {}
+        # Get the list of all nodes between the open and close nodes
+        parent_ids = []
+        explore_upstream(unique_id, dynprompt, upstream, parent_ids)
+        parent_ids = list(set(parent_ids))
+        print(f"* parent_ids = {parent_ids}")
+
+        # Get the list of all output nodes between the open and close nodes
+        prompts = dynprompt.get_original_prompt()
+        output_nodes = {}
+        for id in prompts:
+            node = prompts[id]
+            if "inputs" not in node:
+                continue
+            class_type = node["class_type"]
+            class_def = ALL_NODE_CLASS_MAPPINGS[class_type]
+            if hasattr(class_def, 'OUTPUT_NODE') and class_def.OUTPUT_NODE == True:
+                for k, v in node['inputs'].items():
+                    if is_link(v):
+                        output_nodes[id] = v
+
+        explore_output_nodes(dynprompt, upstream, output_nodes, parent_ids)
+        contained = {}
+
+        collect_contained(open_node, upstream, contained)
+        contained[unique_id] = True
+        contained[open_node] = True
+
+        for node_id in contained:
+            original_node = dynprompt.get_node(node_id)
+            node = graph.node(original_node["class_type"], "Recurse" if node_id == unique_id else node_id)
+            node.set_override_display_id(node_id)
+        for node_id in contained:
+            original_node = dynprompt.get_node(node_id)
+            node = graph.lookup_node("Recurse" if node_id == unique_id else node_id)
+            for k, v in original_node["inputs"].items():
+                if is_link(v) and v[0] in contained:
+                    parent = graph.lookup_node(v[0])
+                    node.set_input(k, parent.out(v[1]))
+                else:
+                    node.set_input(k, v)
 
         batch_current = sequence_batches.pop(0)
         batch_index_play = batch_current["index_play"]
-        print(f"* batch = {batch_index_play}")
-
+        print(f"* batch_current = {batch_index_play}")
+        
         beat_current = batch_current["beat"]
         beat_title = beat_current["title"]
-        print(f"* beat = {beat_title}")
+        print(f"* beat_current = {beat_title}")
 
         scene_current = batch_current["scene"]
         scene_title = scene_current["title"]
         print(f"* scene_current = {scene_title}")
+
         play_current = batch_current["play"]
         play_title = play_current["title"]
-        print(f"* play = {play_title}")
+        print(f"* play_current = {play_title}")
 
-        print("### END play_start")
+        new_open = graph.lookup_node(open_node)
 
-        return tuple(["stub", sequence_batches, data, model, vae, play_current, scene_current, beat_current, batch_current])
+        play_current, scene_current, beat_current, batch_current
+
+        new_open.set_input("batch_current", batch_current)
+        new_open.set_input("beat_current", beat_current)
+        new_open.set_input("scene_current", scene_current)
+        new_open.set_input("play_current", play_current)
+        new_open.set_input("data", data)
+        new_open.set_input("sequence_batches", sequence_batches)
+        new_open.set_input("latent_previous", latent_previous)
+        my_clone = graph.lookup_node("Recurse")
+
+        print("|| END fot_PlayContinue\n")
+        return {
+            "result": tuple([my_clone.out(0)]),
+            "expand": graph.finalize(),
+        }
 
 # #############################################################################
 class fot_PlayData:
@@ -473,8 +656,8 @@ class fot_BatchData:
             }
         }
 
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "STRING",)
-    RETURN_NAMES = ("index_play", "frames_count", "frames_first", "frames_last", "filename")
+    RETURN_TYPES = ("INT", "INT", "INT", "INT", "LATENT", "STRING",)
+    RETURN_NAMES = ("index_play", "frames_count", "frames_first", "frames_last", "latent_previous", "filename")
     FUNCTION = "expose_scene_data"
 
     CATEGORY = CATEGORY
@@ -488,151 +671,9 @@ class fot_BatchData:
                 batch["frames_count"],
                 batch["frames_first"],
                 batch["frames_last"],
+                batch["latent_previous"],
                 batch["filename"],
             )
-
-# #############################################################################
-# this is a modified comfyui-easy-use:whileLoopEnd
-class fot_PlayContinue:
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        inputs = {
-            "required": {
-                "flow": ("FLOW_CONTROL", {"rawLink": True}),
-                "sequence_batches": (any_type,),
-            },
-            "optional": {
-                "data": (any_type,),
-            },
-            "hidden": {
-                "do_continue": ("BOOLEAN", {}),
-                "dynprompt": "DYNPROMPT",
-                "unique_id": "UNIQUE_ID",
-                "extra_pnginfo": "EXTRA_PNGINFO",
-            }
-        }
-        # for i in range(MAX_FLOW_NUM):
-        #     inputs["optional"]["initial_value%d" % i] = (any_type,)
-        return inputs
-
-    RETURN_TYPES = tuple([any_type]) # ByPassTypeTuple(tuple([any_type] * MAX_FLOW_NUM))
-    RETURN_NAMES = tuple(["data"]) # ByPassTypeTuple(tuple(["value%d" % i for i in range(MAX_FLOW_NUM)]))
-    FUNCTION = "play_continue"
-
-    CATEGORY = CATEGORY
-
-    def explore_dependencies(self, node_id, dynprompt, upstream, parent_ids):
-        node_info = dynprompt.get_node(node_id)
-        if "inputs" not in node_info:
-            return
-
-        for k, v in node_info["inputs"].items():
-            if is_link(v):
-                parent_id = v[0]
-                display_id = dynprompt.get_display_node_id(parent_id)
-                display_node = dynprompt.get_node(display_id)
-                class_type = display_node["class_type"]
-                if class_type not in MY_CLASS_TYPES:
-                    parent_ids.append(display_id)
-                if parent_id not in upstream:
-                    upstream[parent_id] = []
-                    self.explore_dependencies(parent_id, dynprompt, upstream, parent_ids)
-
-                upstream[parent_id].append(node_id)
-
-    def explore_output_nodes(self, dynprompt, upstream, output_nodes, parent_ids):
-        for parent_id in upstream:
-            display_id = dynprompt.get_display_node_id(parent_id)
-            for output_id in output_nodes:
-                id = output_nodes[output_id][0]
-                if id in parent_ids and display_id == id and output_id not in upstream[parent_id]:
-                    if '.' in parent_id:
-                        arr = parent_id.split('.')
-                        arr[len(arr)-1] = output_id
-                        upstream[parent_id].append('.'.join(arr))
-                    else:
-                        upstream[parent_id].append(output_id)
-
-    def collect_contained(self, node_id, upstream, contained):
-        if node_id not in upstream:
-            return
-        for child_id in upstream[node_id]:
-            if child_id not in contained:
-                contained[child_id] = True
-                self.collect_contained(child_id, upstream, contained)
-
-    def play_continue(self, flow, data, sequence_batches, dynprompt=None, unique_id=None,**kwargs):
-        print("### fot_PlayContinue")
-        print(f"* data = {data}")
-
-        open_node = flow[0]
-
-        do_continue = not sequence_batches is None and len(sequence_batches) > 0
-        print(f"* do_continue ? {do_continue}")
-
-        if not do_continue:
-            # We're done with the loop
-            values = [data]
-            # new_open = graph.lookup_node(open_node)
-            # new_open.set_input("data", data)
-            # new_open.set_input("sequence_batches", sequence_batches)            
-            return tuple(values)
-
-        # We want to loop
-        this_node = dynprompt.get_node(unique_id)
-        upstream = {}
-        # Get the list of all nodes between the open and close nodes
-        parent_ids = []
-        self.explore_dependencies(unique_id, dynprompt, upstream, parent_ids)
-        parent_ids = list(set(parent_ids))
-        # Get the list of all output nodes between the open and close nodes
-        prompts = dynprompt.get_original_prompt()
-        output_nodes = {}
-        for id in prompts:
-            node = prompts[id]
-            if "inputs" not in node:
-                continue
-            class_type = node["class_type"]
-            class_def = ALL_NODE_CLASS_MAPPINGS[class_type]
-            if hasattr(class_def, 'OUTPUT_NODE') and class_def.OUTPUT_NODE == True:
-                for k, v in node['inputs'].items():
-                    if is_link(v):
-                        output_nodes[id] = v
-
-        graph = GraphBuilder()
-        self.explore_output_nodes(dynprompt, upstream, output_nodes, parent_ids)
-        contained = {}
-        self.collect_contained(open_node, upstream, contained)
-        contained[unique_id] = True
-        contained[open_node] = True
-
-        for node_id in contained:
-            original_node = dynprompt.get_node(node_id)
-            node = graph.node(original_node["class_type"], "Recurse" if node_id == unique_id else node_id)
-            node.set_override_display_id(node_id)
-        for node_id in contained:
-            original_node = dynprompt.get_node(node_id)
-            node = graph.lookup_node("Recurse" if node_id == unique_id else node_id)
-            for k, v in original_node["inputs"].items():
-                if is_link(v) and v[0] in contained:
-                    parent = graph.lookup_node(v[0])
-                    node.set_input(k, parent.out(v[1]))
-                else:
-                    node.set_input(k, v)
-
-        new_open = graph.lookup_node(open_node)
-        new_open.set_input("data", data)
-        new_open.set_input("sequence_batches", sequence_batches)
-        my_clone = graph.lookup_node("Recurse")
-
-        print("### END fot_PlayContinue")
-        return {
-            "result": tuple([my_clone.out(0)]),
-            "expand": graph.finalize(),
-        }
 
 
 # #############################################################################
