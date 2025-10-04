@@ -1,4 +1,5 @@
 myenv/**
-old_codebase/**
+workspace/**
 __pycache__/**
 py/*/__pycache__/**
+notes.md
