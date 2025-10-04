@@ -711,7 +711,7 @@ class fot_test_DisplayInfo:
     FUNCTION = "execute"
     OUTPUT_NODE = True
 
-    CATEGORY = "essentials/utilities"
+    CATEGORY = CATEGORY_TEST
 
     def add_tensor_shapes(self, tensor, text_array):
         if isinstance(tensor, dict):
@@ -733,13 +733,12 @@ class fot_test_DisplayInfo:
             text.append("### dict:")
             text = text + [ f"  - {k}: {str(v)}" for k, v in input.items()]
         else:
-            text.append("### other:")
+            text.append(f"### other {type(input).__name__}:")
             text.append(str(input))
 
         display = "\n".join(text)
 
         return {"ui": {"text": display}, "result": (display,)}
-
 
 # #############################################################################
 # End from comfyui_essentials
@@ -771,13 +770,13 @@ class fot_LatentTransferStateInfo_Lenient:
     CATEGORY     = CATEGORY_LATENT
 
     def main(self, latent_to, latent_from=None):
-        if latent_from is None:
-            return (latent_to,)
-        else:
-            if 'state_info' not in latent_from:
+        state_info = []
+        if not latent_from is None:
+            if not 'state_info' in latent_from:
                 raise ValueError("No 'state_info' in latent_from")
-            latent_to['state_info'] = copy.deepcopy(latent_from['state_info'])
-            return (latent_to,)
+            state_info = latent_from['state_info']
+        latent_to['state_info'] = copy.deepcopy(state_info)
+        return (latent_to,)
 
 # #############################################################################
 # this is a modified RES4LYF:nodes_latents.latent_display_state_info
@@ -795,7 +794,7 @@ class fot_test_DisplayLatent_Lenient:
 
     RETURN_TYPES = ("STRING",)
     FUNCTION     = "execute"
-    CATEGORY     = CATEGORY_LATENT
+    CATEGORY     = CATEGORY_TEST
     OUTPUT_NODE  = True
 
     def execute(self, latent):
@@ -843,30 +842,30 @@ class fot_test_DisplayLatent_Lenient:
 # #############################################################################
 # Start from comfyui core
 # #############################################################################
-def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    latent_image = latent_image["samples"]
-    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+    latent = latent["samples"]
+    latent = comfy.sample.fix_empty_latent_channels(model, latent)
 
     if disable_noise:
-        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+        noise = torch.zeros(latent.size(), dtype=latent.dtype, layout=latent.layout, device="cpu")
     else:
-        batch_inds = latent_image["batch_index"] if "batch_index" in latent_image else None
-        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
+        batch_inds = latent["batch_index"] if "batch_index" in latent else None
+        noise = comfy.sample.prepare_noise(latent, seed, batch_inds)
 
     noise_mask = None
-    if "noise_mask" in latent_image:
-        noise_mask = latent_image["noise_mask"]
+    if "noise_mask" in latent:
+        noise_mask = latent["noise_mask"]
 
     callback = latent_preview.prepare_callback(model, steps)
     disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
-    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
 
     print(f"-- ksampler:")
-    print(f"   * 'state_info' in latent ? {'state_info' in latent_image}")
+    print(f"   * 'state_info' in latent ? {'state_info' in latent}")
 
-    out = latent_image.copy()
+    out = latent.copy()
     out["samples"] = samples
     return (out, )
 
@@ -962,7 +961,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_SubStepsKSampler": "KSampler (Sub-Steps)",
 
     "fot_LatentTransferStateInfo_Lenient": "Latent Transfer State (Lenient)",
-    
+
     "fot_test_DisplayLatent_Lenient": "🔧 Display Latent State (Lenient)",
     "fot_test_DisplayInfo": "🔧 Display Info",
     "fot_test_NoneModel": "🔧 No Model",
