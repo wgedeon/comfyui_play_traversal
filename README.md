@@ -24,13 +24,13 @@ The iterations culminate with the dream setup I am aiming for: a full Play, fuel
 
 This work was not started from scratch, it was inspired by, based on, and, in some cases, contains copies of bits and pieces from those awesome and others:
 
-* (ComfyUI)[https://www.comfy.org/]: A highly customisable AI video gen platform providing the users with tools to solve their own problems, using a visual graph construction and execution mecanism; 
+* [ComfyUI](https://www.comfy.org/): A highly customisable AI video gen platform providing the users with tools to solve their own problems, using a visual graph construction and execution mecanism; 
 
-* (comfyui-easy-use)[https://github.com/yolain/ComfyUI-Easy-Use]: Providing quite a few helpful tools/ nodes to make easier the use of ComfyUI;
+* [comfyui-easy-use](https://github.com/yolain/ComfyUI-Easy-Use): Providing quite a few helpful tools/ nodes to make easier the use of ComfyUI;
 
-* (comfyui_essentials)[https://github.com/cubiq/ComfyUI_essentials]: Backfilling some of the bare necessities in ComfyUI:
+* [comfyui_essentials](https://github.com/cubiq/ComfyUI_essentials): Backfilling some of the bare necessities in ComfyUI:
 
-* (RES4LYF)[https://github.com/ClownsharkBatwing/RES4LYF]: Pushing the boundaries of AI video gen with superior quality sampling and many other tools.
+* [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF): Pushing the boundaries of AI video gen with superior quality sampling and many other tools.
 
 # Iterations plan
 
