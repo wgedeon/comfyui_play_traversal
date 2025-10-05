@@ -41,12 +41,8 @@ The first step is to define the data model that will drive the video sequence ge
 ```mermaid
 ---
 title: Play tree model
-config:
-    diagramPadding: 30
-erDiagram:
-    diagramPadding: 30
-    useWidth: 400
 ---
+%%{init: { "fontSize": "smaller" } }%%
 erDiagram
     direction LR
 
