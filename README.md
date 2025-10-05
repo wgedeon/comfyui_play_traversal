@@ -34,7 +34,7 @@ This work was not started from scratch, it was inspired by, based on, and, in so
 
 # Iterations plan
 
-## Iteration 1: Scene construction (the input model)
+## [<font style="color: green;">working</font>] Iteration 1: Scene construction (the input model)
 
 ### Design
 
@@ -88,7 +88,7 @@ The Scene-Beat is the lowest level `Play` data construction:
 > * Find a way to make hidden: `sequence_batches`
 -----
 
-## Iteration 2: Batch sequencing (the loop)
+## [<font style="color: green;">working</font>] Iteration 2: Batch sequencing (the loop)
 
 ### Design
 
@@ -132,19 +132,43 @@ The current play data, scene data, beat data, and batch data are available throu
 
 ![Batch Data Node](docs/snaps/batch_data.png)
 
+## Example workflows
+
+The following workflows are included here:
+
+* [Empty Body](./workflows/dev_play_loop_empty.json)
+
+* [Ongoing work (does not work)](./workflows/dev_play_loop_current.json)
+
+## [<font style="color: orange;">in progress</font>] Iteration 3: State transfer
+
+State must be transfered from a previous batch processing step to the current one, in order to 
+ensure a smooth batch-to-batch continuity.
+
+* currently investigating the use of `RES4LYF`, still working on the 'state_info' transfer.
 
 
+## [<font style="color: blue;">next</font>] Iteration 4: Output combine
 
+Preferably within the workflow, potentially:
 
+* not tried: `MergingVideoByTwo` from [MoonHugo/ComfyUI-FFmpeg](https://github.com/MoonHugo/ComfyUI-FFmpeg)
 
------
+## [<font style="color: orange;">later</font>] Iteration: Define characters with (codename) triggers
 
+* Add `actor` Data capture and expansion, with the attributes:
+  - Pre-trained or on-the-fly lora based on character trigger codename (to be used in narrative prompts) and (20-40) image-prompt pairs, based on the character's face features
+  - a positive prompt for general behaviour, demeanor, etc.
 
-## Examples
+* Input actors info into play parts, request their rendering based on their codename trigger, e.g. (peter) 
 
-* workflows/dev_play_loop_minimal.json
+* Use actors in scenes, enter, exit, composition within the scene...
 
-## Links to references
+## [<font style="color: orange;">later</font>] Iteration: Use a pose sequence
+
+* input a pose sequence into a beat, associate with actor(s). e.g. a dance quip
+
+# Links to references
 
 * [1] [How to Generate Decent AI Video Without Breaking Your Piggy Bank](https://www.linkedin.com/pulse/how-generate-decent-ai-video-without-breaking-your-piggy-gedeon-lixef)
 
