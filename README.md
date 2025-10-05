@@ -69,19 +69,19 @@ beats represent emotional/mood segments with consistent visual and audio charact
 
 The Scene-Beat is the lowest level `Play` data construction:
 
-![Scene-Beat Node](docs/snaps/scene_beat.png)
+![Scene-Beat Node](docs/snaps/scene_beat.png | width=600)
 
 > **_TODO:_**  Make optional the negative conditioning input.
 
 #### Node `Scene` 
 
-![Scene-Beat Node](docs/snaps/scene.png)
+![Scene-Beat Node](docs/snaps/scene.png | width=600)
 
 > **_TODO:_**  Make scene_beats_* a dynamic list input (currently hard-coded limit).
 
 #### Node `Play (Start)`
 
-![Scene-Beat Node](docs/snaps/play.png)
+![Scene-Beat Node](docs/snaps/play.png | width=600)
 
 > **_TODO:_**
 > * Make scene_* a dynamic list input (currently hard-coded limit).
@@ -109,28 +109,28 @@ passed through from the inputs:
 Paired with `Play (Start)` using a flow link, the **`Play (Continue)`** marks the end of the loop.
 The pair ensures looping over the batches, and serving the parameters and streams to the body of the loop.
 
-![Scene-Beat Node](docs/snaps/loop.png)
+![Scene-Beat Node](docs/snaps/loop.png | width=600)
 
-The current play scene beat batch is available through the following data expansion nodes:
+The current play data, scene data, beat data, and batch data are available through the following data expansion nodes:
 
 #### Node `Play Data`
 
-![Play Data Node](docs/snaps/play_data.png)
+![Play Data Node](docs/snaps/play_data.png | width=600)
 
 
 #### Node `Scene Data`
 
-![Scene Data Node](docs/snaps/scene_data.png)
+![Scene Data Node](docs/snaps/scene_data.png | width=600)
 
 
 #### Node `Scene-Beat Data`
 
-![Scene-Beat Data Node](docs/snaps/beat_data.png)
+![Scene-Beat Data Node](docs/snaps/beat_data.png | width=600)
 
 
 #### Node `Batch Data`
 
-![Batch Data Node](docs/snaps/batch_data.png)
+![Batch Data Node](docs/snaps/batch_data.png | width=600)
 
 
 
