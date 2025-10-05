@@ -45,9 +45,9 @@ title: Play tree model
 erDiagram
     direction LR
 
-    PLAY ||--o{ SCENE : contains
-    SCENE ||--o{ BEAT : contains  
-    BEAT ||--o{ BATCH : contains
+    PLAY ||--o{ SCENE : has
+    SCENE ||--o{ BEAT : has  
+    BEAT ||--o{ BATCH : has
 ```
 
 * the **Play** is the full length of the production; it holds the parameters that are common to the full project; it is made of:
