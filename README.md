@@ -79,7 +79,7 @@ erDiagram
 
 * **Scene**s, there is typically transition between scenes -- a change in locations, the entrance or exit of a character, etc. that would result in crossfade, cut, fade_to_black, etc.
 
-* Scenes are sequences of **Beat**s, which is a general emotional/ mood/ energetic segments of the scene, the remainder of the layout beeing similar (consistent visual and audio characteristics). The background music may be different as well (). A beat has a length in seconds (this is the only video total time length parameter).
+* Scenes are sequences of **Beat**s, which is a general emotional/ mood/ energetic segments of the scene, the remainder of the layout beeing similar (consistent visual and audio characteristics). The background music may be different as well (Tension, Anxiety, Mystery, Intrigue, Joy, Triumph, ...) A beat has a length in seconds (this is the only parameter that impacts the video total time).
 
 beats represent emotional/mood segments with consistent visual and audio characteristics
 
@@ -116,13 +116,15 @@ The Scene-Beat is the lowest level `Play` data construction:
 
 The main idea is to create a sub-graph (the loop body) that takes care of rendering a batch sequence, one batch at a time. All required data must be present as input to the loop body.
 
-The loop starts with `Play (Start)`, and currently provides the following outputs to the loop body:
+The loop starts with `Play (Start)`, and provides outputs to the loop body:
 
 passed through from the inputs:
 
 * the `model`,
 
 * the `vae`, 
+
+in addition to the Play data construction inputs.
 
 ### Implementation
 
@@ -180,7 +182,8 @@ Preferably within the workflow, potentially:
 
 ## [<font style="color: orange;">later</font>] Iteration: Use a pose sequence
 
-* input a pose sequence into a beat, associate with actor(s). e.g. a dance quip
+* input a pose sequence into a beat (same time length)
+* associate with actor(s). e.g. perform a known dance quip
 
 # Links to references
 
