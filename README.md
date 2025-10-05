@@ -42,7 +42,8 @@ The first step is to define the data model that will drive the video sequence ge
 ---
 title: Play tree model
 config:
-  er:
+    diagramPadding: 30
+erDiagram:
     diagramPadding: 30
     useWidth: 400
 ---
