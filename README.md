@@ -42,7 +42,7 @@ The first step is to define the data model that will drive the video sequence ge
 ---
 title: Play tree model
 ---
-%%{init: {'theme':'base', 'themeVariables': { 'fontSize': '20px' }}}%%
+%%{init: {'theme':'base', 'themeVariables': { 'fontSize': '10px' }}}%%
 erDiagram
     direction LR
 
