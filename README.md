@@ -44,6 +44,7 @@ title: Play tree model
 config:
   er:
     diagramPadding: 30
+    useWidth: 400
 ---
 erDiagram
     direction LR
