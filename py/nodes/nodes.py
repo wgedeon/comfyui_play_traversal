@@ -317,10 +317,10 @@ class fot_PlayContinue:
             "required": {
                 "flow": ("FLOW_CONTROL", {"rawLink": True}),
                 "sequence_batches": (any_type,),
-                "latent_previous": ("LATENT", {}),
             },
             "optional": {
                 "data": (any_type,),
+                "latent_previous": ("LATENT", {}),
             },
             "hidden": {
                 "do_continue": ("BOOLEAN", {}),
