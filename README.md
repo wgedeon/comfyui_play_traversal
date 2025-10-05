@@ -34,7 +34,7 @@ This work was not started from scratch, it was inspired by, based on, and, in so
 
 # Iterations plan
 
-## [<font style="color: green;">working</font>] Iteration 1: Scene construction (the input model)
+## [<font style="color: green;">stable</font>] Iteration 1: Scene construction (the input model)
 
 ### Design
 
@@ -88,7 +88,7 @@ The Scene-Beat is the lowest level `Play` data construction:
 > * Find a way to make hidden: `sequence_batches`
 -----
 
-## [<font style="color: green;">working</font>] Iteration 2: Batch sequencing (the loop)
+## [<font style="color: green;">stable</font>] Iteration 2: Batch sequencing (the loop)
 
 ### Design
 
