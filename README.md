@@ -39,10 +39,10 @@ This work was not started from scratch, it was inspired by, based on, and, in so
 The first step is to define the data model that will drive the video sequence generation loop. I drew inspiration from the theatre play composition:
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'fontSize': '20px' }}}%%
 ---
 title: Play tree model
 ---
+%%{init: {'theme':'base', 'themeVariables': { 'fontSize': '20px' }}}%%
 erDiagram
     direction LR
 
