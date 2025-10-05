@@ -31,6 +31,7 @@ CATEGORY = "Play Traversal (Video)"
 CATEGORY_SAMPLING = "Play Traversal (Video)/sampling"
 CATEGORY_LATENT = "Play Traversal (Video)/latent"
 CATEGORY_TEST = "Play Traversal (Video)/test"
+CATEGORY_DEV = "Play Traversal (Video)/dev"
 
 MY_CLASS_TYPES = ['fot_PlayStart', 'fot_PlayContinue']
 
@@ -404,8 +405,8 @@ class fot_PlayContinue:
         batch_current = sequence_batches.pop(0)
         batch_index_play = batch_current["index_play"]
         print(f"* batch_current = {batch_index_play}")
-        if not latent_previous is None:
-            batch_current["latent_previous"] = latent_previous
+        # if not latent_previous is None:
+        batch_current["latent_previous"] = latent_previous
         
         beat_current = batch_current["beat"]
         beat_title = beat_current["title"]
@@ -713,28 +714,43 @@ class fot_test_DisplayInfo:
 
     CATEGORY = CATEGORY_TEST
 
-    def add_tensor_shapes(self, tensor, text_array):
-        if isinstance(tensor, dict):
-            for k in tensor:
-                text_array = self.add_tensor_shapes(tensor[k])
-        elif isinstance(tensor, list):
-            for i in range(len(tensor)):
-                text_array = self.add_tensor_shapes(tensor[i])
-        elif hasattr(tensor, 'shape'):
-            text_array.append(list(tensor.shape))
+    def make_shapes_info_list(self, tensor, prefix):
+        text_array = []
+        # if isinstance(tensor, dict):
+        #     for k in tensor:
+        #         text_array.extend(self.make_shapes_info_list(tensor[k]))
+        # elif isinstance(tensor, list):
+        #     for i in range(len(tensor)):
+        #         text_array.extend(self.make_shapes_info_list(tensor[i]))
+        # el
+        if hasattr(tensor, 'shape'):
+            text_array.append(prefix+str(list(tensor.shape)))
+        else:
+            text_array.append(prefix+"<no shape found>")
         return text_array
 
-    def execute(self, input):
+    def make_list(self, input, level, prefix):
+        if level <= 0: return []
         text = []
         if isinstance(input, torch.Tensor):
-            text.append("### torch.Tensor:")
-            self.add_tensor_shapes(input, text)
+            text.append(prefix+"torch.Tensor:")
+            text.extend(self.make_shapes_info_list(input, prefix+"       "))
         elif isinstance(input, dict):
-            text.append("### dict:")
-            text = text + [ f"  - {k}: {str(v)}" for k, v in input.items()]
+            text.append(prefix+f"dict ({len(input)}):")
+            for k, v in input.items():
+                text.append(prefix+f"  - {k}:")
+                text.extend(self.make_list(v, level-1, prefix+"       "))
         else:
-            text.append(f"### other {type(input).__name__}:")
-            text.append(str(input))
+            text.append(prefix+f"other {type(input).__name__}:")
+            text.append(prefix+"       "+str(input))
+
+        return text
+
+    def execute(self, input):
+        text = self.make_list(input, 3, "")
+
+        for i in text:
+            print(f"[{type(i).__name__}] = {str(i)}")
 
         display = "\n".join(text)
 
@@ -767,15 +783,20 @@ class fot_LatentTransferStateInfo_Lenient:
     RETURN_TYPES = ("LATENT",)
     RETURN_NAMES = ("latent",)
     FUNCTION     = "main"
-    CATEGORY     = CATEGORY_LATENT
+    CATEGORY     = CATEGORY_DEV
 
     def main(self, latent_to, latent_from=None):
-        state_info = []
+        # state_info = []
+        # if not latent_from is None:
+        #     if not 'state_info' in latent_from:
+        #         raise ValueError("No 'state_info' in latent_from")
+        #     state_info = latent_from['state_info']
+        # latent_to['state_info'] = copy.deepcopy(state_info)
+        # return (latent_to,)
         if not latent_from is None:
-            if not 'state_info' in latent_from:
-                raise ValueError("No 'state_info' in latent_from")
-            state_info = latent_from['state_info']
-        latent_to['state_info'] = copy.deepcopy(state_info)
+            if 'state_info' in latent_from:
+                state_info = latent_from['state_info']
+                latent_to['state_info'] = copy.deepcopy(state_info)
         return (latent_to,)
 
 # #############################################################################
@@ -896,7 +917,7 @@ class fot_SubStepsKSampler:
     OUTPUT_TOOLTIPS = ("The denoised latent.",)
     FUNCTION = "sample"
 
-    CATEGORY = CATEGORY_SAMPLING
+    CATEGORY = CATEGORY_DEV
     DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image. Allows to run partial sub-steps of the denoising process.<br /><b>Note: indexes are 1 based!</b>"
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, step_first=1, step_count=-1, denoise=1.0):
