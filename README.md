@@ -36,6 +36,8 @@ This work was not started from scratch, it was inspired by, based on, and, in so
 
 ## Iteration 1: Scene construction (the input model)
 
+### Design
+
 The first step is to define the data model that will drive the video sequence generation loop. I drew inspiration from the theatre play composition:
 
 ```mermaid
@@ -53,15 +55,90 @@ erDiagram
 
 * the **Play** is the full length of the production; it holds the parameters that are common to the full project; it is made of:
 
-* **Scene**s, there is transition between scenes -- a change in locations, the introduction of a new character...
+* **Scene**s, there is typically transition between scenes -- a change in locations, the entrance or exit of a character, etc. that would result in crossfade, cut, fade_to_black, etc.
 
-* Scenes are sequences of **Beat**s, which is a general emotional and energetic state of the scene, the remainder of the layout beeing similar, the background music may be different as well. A scene has a length in seconds.
+* Scenes are sequences of **Beat**s, which is a general emotional/ mood/ energetic segments of the scene, the remainder of the layout beeing similar (consistent visual and audio characteristics). The background music may be different as well (). A beat has a length in seconds (this is the only video total time length parameter).
 
-* In order to fit the processing power of the underlying machine, a scene beat is broken down into a sequence of **Batch**es, each batch covering a part of the beat.
+beats represent emotional/mood segments with consistent visual and audio characteristics
 
-## Helper nodes
+* In order to fit the processing power of the underlying machine, a scene beat is broken down into a sequence of **Batch**es (batches are technical processing units constrained by hardware limitations), each batch covering a part of the beat, and tailored to the memory limitations (number of frames in the video chunk, number of steps in the sampling).
 
-* **Play (Start)** paired with **Play (Continue)**: Looping over the batches, and serving the parameters and streams to the body of the loop.
+### Implementation
+
+#### Node `Scene-Beat`
+
+The Scene-Beat is the lowest level `Play` data construction:
+
+![Scene-Beat Node](docs/snaps/scene_beat.png)
+
+> **_TODO:_**  Make optional the negative conditioning input.
+
+#### Node `Scene` 
+
+![Scene-Beat Node](docs/snaps/scene.png)
+
+> **_TODO:_**  Make scene_beats_* a dynamic list input (currently hard-coded limit).
+
+#### Node `Play (Start)`
+
+![Scene-Beat Node](docs/snaps/play.png)
+
+> **_TODO:_**
+> * Make scene_* a dynamic list input (currently hard-coded limit).
+> * Find a way to make hidden: `sequence_batches`
+-----
+
+## Iteration 2: Batch sequencing (the loop)
+
+### Design
+
+The main idea is to create a sub-graph (the loop body) that takes care of rendering a batch sequence, one batch at a time. All required data must be present as input to the loop body.
+
+The loop starts with `Play (Start)`, and currently provides the following outputs to the loop body:
+
+passed through from the inputs:
+
+* the `model`,
+
+* the `vae`, 
+
+### Implementation
+
+#### Node `Play (Continue)`
+
+Paired with `Play (Start)` using a flow link, the **`Play (Continue)`** marks the end of the loop.
+The pair ensures looping over the batches, and serving the parameters and streams to the body of the loop.
+
+![Scene-Beat Node](docs/snaps/loop.png)
+
+The current play scene beat batch is available through the following data expansion nodes:
+
+#### Node `Play Data`
+
+![Play Data Node](docs/snaps/play_data.png)
+
+
+#### Node `Scene Data`
+
+![Scene Data Node](docs/snaps/scene_data.png)
+
+
+#### Node `Scene-Beat Data`
+
+![Scene-Beat Data Node](docs/snaps/beat_data.png)
+
+
+#### Node `Batch Data`
+
+![Batch Data Node](docs/snaps/batch_data.png)
+
+
+
+
+
+
+-----
+
 
 ## Examples
 
