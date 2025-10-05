@@ -46,33 +46,6 @@ erDiagram
     PLAY ||--o{ SCENE : contains
     SCENE ||--o{ BEAT : contains  
     BEAT ||--o{ BATCH : contains
-    
-    PLAY {
-        string play_id PK
-        string title
-        timestamp created_at
-    }
-    
-    SCENE {
-        string scene_id PK
-        string play_id FK
-        int scene_number
-        string description
-    }
-    
-    BEAT {
-        string beat_id PK
-        string scene_id FK
-        int beat_number
-        string timing_info
-    }
-    
-    BATCH {
-        string batch_id PK
-        string beat_id FK
-        int batch_sequence
-        json generation_parameters
-    }
 ```
 
 * the **Play** is the full length of the production; it holds the parameters that are common to the full project; it is made of:
