@@ -18,11 +18,25 @@ The iterations culminate with the dream setup I am aiming for: a full Play, fuel
 
 ### Constraints
 
-* Each part of the process must fit on GPU (8g VRAM)
+* Each part of the process must fit on one GPU (8g VRAM) and 32g RAM.
+
+### Nice to have
+
+* To be able to inject actors description (either face images, or a trained LoRA)
+
+* To be able to dictate a pose sequence over a beat, and associate it with a actor.
+
+* To be able to pair sound generation with the different levels of the play (overall recurring base track, specific beat backtrack, actors speech, etc.)
+
+* To be able to generate start (title) and end (credits) scenes.
+
+* To select the actors speech language as part of the Play attributes.
 
 ### Standing on the shoulders of giants
 
 This work was not started from scratch, it was inspired by, based on, and, in some cases, contains copies of bits and pieces from those awesome and others:
+
+* The many contributors to platforms such as: [Hugging Face](https://huggingface.co/), and [CivitAI](https://civitai.com/).
 
 * [ComfyUI](https://www.comfy.org/): A highly customisable AI video gen platform providing the users with tools to solve their own problems, using a visual graph construction and execution mecanism; 
 
@@ -31,6 +45,14 @@ This work was not started from scratch, it was inspired by, based on, and, in so
 * [comfyui_essentials](https://github.com/cubiq/ComfyUI_essentials): Backfilling some of the bare necessities in ComfyUI:
 
 * [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF): Pushing the boundaries of AI video gen with superior quality sampling and many other tools.
+
+## Example workflows
+
+The following sample workflows are included:
+
+* [Empty Body](./workflows/dev_play_loop_empty.json)
+
+* [Ongoing work (does not work)](./workflows/dev_play_loop_current.json)
 
 # Iterations plan
 
@@ -131,14 +153,6 @@ The current play data, scene data, beat data, and batch data are available throu
 #### Node `Batch Data`
 
 ![Batch Data Node](docs/snaps/batch_data.png)
-
-## Example workflows
-
-The following workflows are included here:
-
-* [Empty Body](./workflows/dev_play_loop_empty.json)
-
-* [Ongoing work (does not work)](./workflows/dev_play_loop_current.json)
 
 ## [<font style="color: orange;">in progress</font>] Iteration 3: State transfer
 
