@@ -43,6 +43,8 @@ The first step is to define the data model that will drive the video sequence ge
 title: Play tree model
 ---
 erDiagram
+    direction LR
+
     PLAY ||--o{ SCENE : contains
     SCENE ||--o{ BEAT : contains  
     BEAT ||--o{ BATCH : contains
