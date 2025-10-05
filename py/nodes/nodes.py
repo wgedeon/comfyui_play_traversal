@@ -32,6 +32,7 @@ CATEGORY_SAMPLING = "Play Traversal (Video)/sampling"
 CATEGORY_LATENT = "Play Traversal (Video)/latent"
 CATEGORY_TEST = "Play Traversal (Video)/test"
 CATEGORY_DEV = "Play Traversal (Video)/dev"
+CATEGORY_OTHER = "Play Traversal (Video)/other"
 
 MY_CLASS_TYPES = ['fot_PlayStart', 'fot_PlayContinue']
 
@@ -946,6 +947,24 @@ class fot_SubStepsKSampler:
 # End from comfyui core
 # #############################################################################
 
+class fot_NamedReroute:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {},
+            "optional": {
+                "rin": (any_type,),
+            },
+        }
+    
+    RETURN_TYPES = (any_type,)
+    RETURN_NAMES = ("rout",)
+    CATEGORY = CATEGORY_DEV
+    OUTPUT_NODE = False
+    FUNCTION = "pass_through"
+
+    def pass_through(self, rin=None):
+        return {"ui": {"text": "<display>"}, "result": (rin,)}
 
 # #############################################################################
 NODE_CLASS_MAPPINGS = {
@@ -961,6 +980,8 @@ NODE_CLASS_MAPPINGS = {
     "fot_SubStepsKSampler": fot_SubStepsKSampler,
 
     "fot_LatentTransferStateInfo_Lenient": fot_LatentTransferStateInfo_Lenient,
+
+    "fot_NamedReroute": fot_NamedReroute,
 
     "fot_test_DisplayLatent_Lenient": fot_test_DisplayLatent_Lenient,
     "fot_test_DisplayInfo": fot_test_DisplayInfo,
@@ -982,6 +1003,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_SubStepsKSampler": "KSampler (Sub-Steps)",
 
     "fot_LatentTransferStateInfo_Lenient": "Latent Transfer State (Lenient)",
+
+    "fot_NamedReroute": "Named Reroute",
 
     "fot_test_DisplayLatent_Lenient": "🔧 Display Latent State (Lenient)",
     "fot_test_DisplayInfo": "🔧 Display Info",
