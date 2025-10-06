@@ -171,6 +171,27 @@ def construct_sequence_batches(model, vae, title, positive, negative, seed, file
 
     return sequence_batches
 
+
+class fot_NamedReroute:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {},
+            "optional": {
+                "rin": (any_type,),
+            },
+        }
+    
+    RETURN_TYPES = (any_type,)
+    RETURN_NAMES = ("rout",)
+    CATEGORY = CATEGORY_DEV
+    OUTPUT_NODE = False
+    FUNCTION = "pass_through"
+
+    def pass_through(self, rin=None):
+        return {"ui": {"text": "<display>"}, "result": (rin,)}
+
+
 class fot_test_NoneModel:
     @classmethod
     def INPUT_TYPES(s):
@@ -255,7 +276,7 @@ class fot_PlayStart:
                 "scene_current": ("SCENE",),
                 "beat_current": ("SCENE_BEAT",), 
                 "batch_current": ("BATCH",),
-                "latent_previous": ("LATENT", {}),
+                "latent_previous": ("LATENT",),
                 "do_continue": ("BOOLEAN", {"default": True}),
                 "flow": ("FLOW_CONTROL", {"rawLink": True}),
                 "dynprompt": "DYNPROMPT",
@@ -322,7 +343,7 @@ class fot_PlayContinue:
             },
             "optional": {
                 "data": (any_type,),
-                "latent_previous": ("LATENT", {}),
+                "latent_previous": ("LATENT",),
             },
             "hidden": {
                 "do_continue": ("BOOLEAN", {}),
@@ -687,6 +708,7 @@ class fot_BatchData:
                 batch["filename"],
             )
 
+
 # #############################################################################
 # Start from comfyui_essentials
 # #############################################################################
@@ -736,6 +758,10 @@ class fot_test_DisplayInfo:
         if isinstance(input, torch.Tensor):
             text.append(prefix+"torch.Tensor:")
             text.extend(self.make_shapes_info_list(input, prefix+"       "))
+        elif isinstance(input, list):
+            text.append(prefix+f"list ({len(input)}):")
+            for v in input:
+                text.extend(self.make_list(v, level-1, prefix+"       "))
         elif isinstance(input, dict):
             text.append(prefix+f"dict ({len(input)}):")
             for k, v in input.items():
@@ -750,8 +776,8 @@ class fot_test_DisplayInfo:
     def execute(self, input):
         text = self.make_list(input, 3, "")
 
-        for i in text:
-            print(f"[{type(i).__name__}] = {str(i)}")
+        # for i in text:
+        #     print(f"[{type(i).__name__}] = {str(i)}")
 
         display = "\n".join(text)
 
@@ -864,35 +890,8 @@ class fot_test_DisplayLatent_Lenient:
 # #############################################################################
 # Start from comfyui core
 # #############################################################################
-def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    latent = latent["samples"]
-    latent = comfy.sample.fix_empty_latent_channels(model, latent)
 
-    if disable_noise:
-        noise = torch.zeros(latent.size(), dtype=latent.dtype, layout=latent.layout, device="cpu")
-    else:
-        batch_inds = latent["batch_index"] if "batch_index" in latent else None
-        noise = comfy.sample.prepare_noise(latent, seed, batch_inds)
-
-    noise_mask = None
-    if "noise_mask" in latent:
-        noise_mask = latent["noise_mask"]
-
-    callback = latent_preview.prepare_callback(model, steps)
-    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
-    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent,
-                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
-
-    print(f"-- ksampler:")
-    print(f"   * 'state_info' in latent ? {'state_info' in latent}")
-
-    out = latent.copy()
-    out["samples"] = samples
-    return (out, )
-
-# largely based on Comfyui core: KSampler
-class fot_SubStepsKSampler:
+class fot_SubStepsKSampler_old:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -939,32 +938,156 @@ class fot_SubStepsKSampler:
             # raise ValueError("step_count is too high")
             last_step = steps
             print(f"==> last_step = {last_step}")
-        print(f"* 'state_info' in latent ? {'state_info' in latent_image}")
         
         return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_step=start_step, last_step=last_step, denoise=denoise)
+
+
+def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+    latent_image = latent["samples"]
+    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+
+    if disable_noise:
+        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+    else:
+        batch_inds = latent["batch_index"] if "batch_index" in latent else None
+        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
+
+    noise_mask = None
+    if "noise_mask" in latent:
+        noise_mask = latent["noise_mask"]
+
+    callback = latent_preview.prepare_callback(model, steps)
+    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
+    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
+    out = latent.copy()
+    out["samples"] = samples
+    return (out, )
+
+# largely based on Comfyui core: KSampler
+class fot_SubStepsKSampler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "The model used for denoising the input latent."}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
+                "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
+                "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
+                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"tooltip": "The scheduler controls how noise is gradually removed to form the image."}),
+                "positive": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to include in the image."}),
+                "negative": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to exclude from the image."}),
+                "latent_image": ("LATENT", {"tooltip": "The latent image to denoise."}),
+                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling."}),
+            },
+            "optional": {
+                "step_first": ("INT", {"default": 1, "min": 1,
+                                       "tooltip": "The first step to sample (must be in [1 .. <code>steps</code>]"}),
+                "step_count": ("INT", {"default": -1, "min": -1,
+                                       "tooltip": "The number of steps to sample (<code>step_first + step_count &lt;= steps</code>, -1 = all remaining)."}),
+            }
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    OUTPUT_TOOLTIPS = ("The denoised latent.",)
+    FUNCTION = "sample"
+
+    CATEGORY = CATEGORY_DEV
+    DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
+
+    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, step_first=1, step_count=-1, denoise=1.0):
+        # print(f"## sample")
+        # print(f"* steps = {steps}")
+        # print(f"* step_first = {step_first}")
+        # if step_first < 1:
+        #     raise ValueError("step_first may not be smaller than one")
+        # start_step = step_first - 1
+        # print(f"* start_step = {start_step}")
+        # if step_count == -1:
+        #     step_count = steps - start_step
+        # print(f"* step_count = {step_count}")
+        # last_step = start_step + step_count# last step exclusive
+        # print(f"* last_step = {last_step}")
+        # if last_step > steps:
+        #     # be permissive and restrict to available steps
+        #     # raise ValueError("step_count is too high")
+        #     last_step = steps
+        #     print(f"==> last_step = {last_step}")
+        print(f"## sample")
+        print(f"* steps = {steps}")
+        print(f"* step_first = {step_first}")
+        if step_first < 1:
+            raise ValueError("step_first may not be smaller than one")
+        start_step = step_first
+        print(f"* start_step = {start_step}")
+        if step_count == -1:
+            step_count = steps - start_step + 1
+        print(f"* step_count = {step_count}")
+        last_step = start_step + step_count # last step exclusive
+        print(f"* last_step = {last_step}")
+        if last_step > steps:
+            # be permissive and restrict to available steps
+            # raise ValueError("step_count is too high")
+            last_step = steps
+            print(f"==> last_step = {last_step}")
+ 
+        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, start_step=start_step, last_step=last_step)
+
 
 # #############################################################################
 # End from comfyui core
 # #############################################################################
 
-class fot_NamedReroute:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {},
-            "optional": {
-                "rin": (any_type,),
-            },
-        }
-    
-    RETURN_TYPES = (any_type,)
-    RETURN_NAMES = ("rout",)
-    CATEGORY = CATEGORY_DEV
-    OUTPUT_NODE = False
-    FUNCTION = "pass_through"
+# #############################################################################
+# Start from comfyui comfy_extras
+# #############################################################################
 
-    def pass_through(self, rin=None):
-        return {"ui": {"text": "<display>"}, "result": (rin,)}
+def reshape_latent_to(target_shape, latent, repeat_batch=True):
+    if latent.shape[1:] != target_shape[1:]:
+        latent = comfy.utils.common_upscale(latent, target_shape[-1], target_shape[-2], "bilinear", "center")
+    if repeat_batch:
+        return comfy.utils.repeat_to_batch_size(latent, target_shape[0])
+    else:
+        return latent
+
+# slightly modified LatentBatch
+class fot_LatentBatch_Lenient:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "samples1": ("LATENT",),
+            },
+            "optional": {
+                "samples2": ("LATENT",),
+            }
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "batch"
+
+    CATEGORY = CATEGORY_LATENT
+
+    def batch(self, samples1, samples2=None):
+        samples_out = samples1.copy()
+
+        if samples2 is None:
+            return (samples1,)
+        
+        s1 = samples1["samples"]
+        s2 = samples2["samples"]
+        s2 = reshape_latent_to(s1.shape, s2, repeat_batch=False)
+        s = torch.cat((s1, s2), dim=0)
+        samples_out["samples"] = s
+        samples_out["batch_index"] = samples1.get("batch_index", [x for x in range(0, s1.shape[0])]) + samples2.get("batch_index", [x for x in range(0, s2.shape[0])])
+
+        return (samples_out,)
+
+# #############################################################################
+# End from comfyui comfy_extras
+# #############################################################################
 
 # #############################################################################
 NODE_CLASS_MAPPINGS = {
@@ -980,6 +1103,7 @@ NODE_CLASS_MAPPINGS = {
     "fot_SubStepsKSampler": fot_SubStepsKSampler,
 
     "fot_LatentTransferStateInfo_Lenient": fot_LatentTransferStateInfo_Lenient,
+    "fot_LatentBatch_Lenient": fot_LatentBatch_Lenient,
 
     "fot_NamedReroute": fot_NamedReroute,
 
@@ -1003,6 +1127,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_SubStepsKSampler": "KSampler (Sub-Steps)",
 
     "fot_LatentTransferStateInfo_Lenient": "Latent Transfer State (Lenient)",
+    "fot_LatentBatch_Lenient": "LatentBatch (Lenient)",
 
     "fot_NamedReroute": "Named Reroute",
 
