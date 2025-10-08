@@ -79,9 +79,7 @@ erDiagram
 
 * **Scene**s, there is typically transition between scenes -- a change in locations, the entrance or exit of a character, etc. that would result in crossfade, cut, fade_to_black, etc.
 
-* Scenes are sequences of **Beat**s, which is a general emotional/ mood/ energetic segments of the scene, the remainder of the layout beeing similar (consistent visual and audio characteristics). The background music may be different as well (Tension, Anxiety, Mystery, Intrigue, Joy, Triumph, ...) A beat has a length in seconds (this is the only parameter that impacts the video total time).
-
-beats represent emotional/mood segments with consistent visual and audio characteristics
+* Scenes are sequences of **Beat**s, which is a general emotional/ mood/ energetic segments of the scene, with consistent visual and audio characteristics, the remainder of the layout beeing similar (consistent visual and audio characteristics). The background music may be different as well (Tension, Anxiety, Mystery, Intrigue, Joy, Triumph, ...) A beat has a length in seconds (this is the only parameter that impacts the video total time).
 
 * In order to fit the processing power of the underlying machine, a scene beat is broken down into a sequence of **Batch**es (batches are technical processing units constrained by hardware limitations), each batch covering a part of the beat, and tailored to the memory limitations (number of frames in the video chunk, number of steps in the sampling).
 
@@ -158,10 +156,9 @@ The current play data, scene data, beat data, and batch data are available throu
 
 ## [<font style="color: orange;">in progress</font>] Iteration 3: State transfer
 
-State must be transfered from a previous batch processing step to the current one, in order to 
-ensure a smooth batch-to-batch continuity.
+State must be transfered from a previous batch processing step to the current one, in order to ensure a smooth batch-to-batch continuity.
 
-* currently investigating the use of `RES4LYF`, still working on the 'state_info' transfer.
+
 
 
 ## [<font style="color: blue;">next</font>] Iteration 4: Output combine
@@ -185,10 +182,13 @@ Preferably within the workflow, potentially:
 * input a pose sequence into a beat (same time length)
 * associate with actor(s). e.g. perform a known dance quip
 
-# Links to references
+# Links and references
 
 * [1] [How to Generate Decent AI Video Without Breaking Your Piggy Bank](https://www.linkedin.com/pulse/how-generate-decent-ai-video-without-breaking-your-piggy-gedeon-lixef)
 
 * [2] [Noisy Latent Composition](https://comfyui-wiki.com/en/workflows/noisy-latent-composition)
 
 * [3] [VideoGen-of-Thought: Step-by-step generating multi-shot video with minimal manual intervention](https://arxiv.org/html/2412.02259v2)
+
+* [4] [
+Why Wan2.2 Has 2 Models and How To Take Advantage Of Them](https://www.youtube.com/watch?v=QrkWyfCNbaY&t=601s)
