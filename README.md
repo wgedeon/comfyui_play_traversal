@@ -1,36 +1,24 @@
 # ComfyUI_Play_Traversal
 
-Provides a structured model and helper nodes for producing long video sequences on ComfyUI using low vram machines.
+Provides a structured model and helper nodes for running a sampler loop over frame batches.
 
 ## Context
 
 I have started playing with ComfyUI and the video gen space a few months ago. The first obstacle that is still the main on-going challenge is to be able to move out of the gimmick and proof-of-concept, and into a useful activity, on a low VRAM machine.
 
-The iterations culminate with the dream setup I am aiming for: a full Play, fueled with all possible conditioning that's currently available. 
+The first step is the construction of a narrative and looping over it. 
 
 ### Requirements
 
 * Provide a structured narrative tree model, sharing conditionings with sub-tree nodes;
 
-* Produce a decent quality long video (longer than 3s) that follows the narrative [1];
+* Produce a decent quality long video (longer than 3s) that follows the narrative;
 
-* Allow transmission of *what's needed to ensure continuity between video chunks* (probably Noisy Latent Composition [2] and the research concept of "adjacent latent transition mechanisms" [3]).
+* Allow transmission of *what's needed to ensure continuity between video chunks* (probably Noisy Latent Composition and the research concept of "adjacent latent transition mechanisms").
 
 ### Constraints
 
 * Each part of the process must fit on one GPU (8g VRAM) and 32g RAM.
-
-### Nice to have
-
-* To be able to inject actors description (either face images, or a trained LoRA)
-
-* To be able to dictate a pose sequence over a beat, and associate it with a actor.
-
-* To be able to pair sound generation with the different levels of the play (overall recurring base track, specific beat backtrack, actors speech, etc.)
-
-* To be able to generate start (title) and end (credits) scenes.
-
-* To select the actors speech language as part of the Play attributes.
 
 ### Standing on the shoulders of giants
 
@@ -44,19 +32,13 @@ This work was not started from scratch, it was inspired by, based on, and, in so
 
 * [comfyui_essentials](https://github.com/cubiq/ComfyUI_essentials): Backfilling some of the bare necessities in ComfyUI:
 
-* [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF): Pushing the boundaries of AI video gen with superior quality sampling and many other tools.
-
-## Example workflows
+## Example workflow
 
 The following sample workflows are included:
 
 * [Empty Body](./workflows/dev_play_loop_empty.json)
 
-* [Ongoing work (does not work)](./workflows/dev_play_loop_current.json)
-
-# Iterations plan
-
-## [<font style="color: green;">stable</font>] Iteration 1: Scene construction (the input model)
+## Scene construction (the input model)
 
 ### Design
 
@@ -108,7 +90,7 @@ The Scene-Beat is the lowest level `Play` data construction:
 > * Find a way to make hidden: `sequence_batches`
 -----
 
-## [<font style="color: green;">stable</font>] Iteration 2: Batch sequencing (the loop)
+## Batch sequencing (the loop)
 
 ### Design
 
@@ -154,41 +136,4 @@ The current play data, scene data, beat data, and batch data are available throu
 
 ![Batch Data Node](docs/snaps/batch_data.png)
 
-## [<font style="color: orange;">in progress</font>] Iteration 3: State transfer
 
-State must be transfered from a previous batch processing step to the current one, in order to ensure a smooth batch-to-batch continuity.
-
-
-
-
-## [<font style="color: blue;">next</font>] Iteration 4: Output combine
-
-Preferably within the workflow, potentially:
-
-* not tried: `MergingVideoByTwo` from [MoonHugo/ComfyUI-FFmpeg](https://github.com/MoonHugo/ComfyUI-FFmpeg)
-
-## [<font style="color: orange;">later</font>] Iteration: Define characters with (codename) triggers
-
-* Add `actor` Data capture and expansion, with the attributes:
-  - Pre-trained or on-the-fly lora based on character trigger codename (to be used in narrative prompts) and (20-40) image-prompt pairs, based on the character's face features
-  - a positive prompt for general behaviour, demeanor, etc.
-
-* Input actors info into play parts, request their rendering based on their codename trigger, e.g. (peter) 
-
-* Use actors in scenes, enter, exit, composition within the scene...
-
-## [<font style="color: orange;">later</font>] Iteration: Use a pose sequence
-
-* input a pose sequence into a beat (same time length)
-* associate with actor(s). e.g. perform a known dance quip
-
-# Links and references
-
-* [1] [How to Generate Decent AI Video Without Breaking Your Piggy Bank](https://www.linkedin.com/pulse/how-generate-decent-ai-video-without-breaking-your-piggy-gedeon-lixef)
-
-* [2] [Noisy Latent Composition](https://comfyui-wiki.com/en/workflows/noisy-latent-composition)
-
-* [3] [VideoGen-of-Thought: Step-by-step generating multi-shot video with minimal manual intervention](https://arxiv.org/html/2412.02259v2)
-
-* [4] [
-Why Wan2.2 Has 2 Models and How To Take Advantage Of Them](https://www.youtube.com/watch?v=QrkWyfCNbaY&t=601s)

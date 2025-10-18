@@ -1,7 +1,6 @@
 from typing import Iterator, List, Tuple, Dict, Any, Union, Optional
 from _decimal import Context, getcontext
-from nodes import PreviewImage, SaveImage, NODE_CLASS_MAPPINGS as ALL_NODE_CLASS_MAPPINGS
-from ..libs.utils import AlwaysEqualProxy, ByPassTypeTuple, cleanGPUUsedForce, compare_revision
+from nodes import NODE_CLASS_MAPPINGS as ALL_NODE_CLASS_MAPPINGS
 from datetime import datetime
 import json
 import math
@@ -28,19 +27,22 @@ logger.addHandler(handler)
 
 
 CATEGORY = "Play Traversal (Video)"
-CATEGORY_SAMPLING = "Play Traversal (Video)/sampling"
-CATEGORY_LATENT = "Play Traversal (Video)/latent"
-CATEGORY_TEST = "Play Traversal (Video)/test"
-CATEGORY_DEV = "Play Traversal (Video)/dev"
-CATEGORY_OTHER = "Play Traversal (Video)/other"
 
 MY_CLASS_TYPES = ['fot_PlayStart', 'fot_PlayContinue']
 
 DEFAULT_FLOW_NUM = 2
 MAX_FLOW_NUM = 5
 
-any_type = AlwaysEqualProxy("*")
+# start code from comfyui-easy-use
 
+class AlwaysEqualProxy(str):
+    def __eq__(self, _):
+        return True
+
+    def __ne__(self, _):
+        return False
+
+any_type = AlwaysEqualProxy("*")
 
 def explore_upstream(node_id, dynprompt, upstream, parent_ids):
     node_info = dynprompt.get_node(node_id)
@@ -82,6 +84,8 @@ def collect_contained(node_id, upstream, contained):
             contained[child_id] = True
             collect_contained(child_id, upstream, contained)
 
+# end code from comfyui-easy-use
+
 def construct_sequence_batches(model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, scenes, data=None):
     play = {
         "data": data,
@@ -108,22 +112,30 @@ def construct_sequence_batches(model, vae, title, positive, negative, seed, file
     if None in scenes:
         raise ValueError("Found gap in scenes, please defragment!")
 
-    logging.info(" == traversing tree for sequencing")
+    print(" == traversing tree for sequencing")
 
     sequence_batches = []
     duration_secs_play = 0
     index_play = 0
 
     for scene in scenes:
+        print(f"    - scene: {scene['title']}")
+
         scene["filename_base"] = filename_base + "_" + scene["filename_part"]
 
         scene_beats_list = scene.get("scene_beats", [])
         frames_count_scene = 0
         for scene_beat in scene_beats_list:
+            print(f"      * beat: {scene_beat['title']}")
+            print(f"        length: {scene_beat['duration_secs']}")
+
             scene_beat["filename_base"] = scene["filename_base"] + "_" + scene_beat["filename_part"]
             duration_secs_play += scene_beat["duration_secs"]
+            print(f"        duration: {scene_beat['duration_secs']}")
             scene_beat["frames_count"] = int(fps * scene_beat["duration_secs"])
+            print(f"        frames: {scene_beat['frames_count']}")
             batch_count = math.floor(scene_beat["frames_count"] / frames_count_per_batch)
+            print(f"        batches: {batch_count}")
             remaining_count = scene_beat["frames_count"]
             last_frame = 0
             for i in range(0, batch_count):
@@ -142,6 +154,8 @@ def construct_sequence_batches(model, vae, title, positive, negative, seed, file
                 sequence_batch["frames_last"] = last_frame
 
                 sequence_batches.append(sequence_batch)
+                print(f"          -> {sequence_batch['filename']}: {sequence_batch['frames_first']} , {sequence_batch['frames_last']}")
+
                 remaining_count = remaining_count - frames_count_per_batch
             if remaining_count > 0:
                 i = batch_count
@@ -159,6 +173,7 @@ def construct_sequence_batches(model, vae, title, positive, negative, seed, file
                 last_frame = sequence_batch["frames_first"] + remaining_count - 1
                 sequence_batch["frames_last"] = last_frame
                 sequence_batches.append(sequence_batch)
+                print(f"          +> {sequence_batch}")
 
             frames_count_scene += scene_beat["frames_count"]
 
@@ -170,79 +185,6 @@ def construct_sequence_batches(model, vae, title, positive, negative, seed, file
     play["frames_count"] = frames_count_total
 
     return sequence_batches
-
-
-class fot_NamedReroute:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {},
-            "optional": {
-                "rin": (any_type,),
-            },
-        }
-    
-    RETURN_TYPES = (any_type,)
-    RETURN_NAMES = ("rout",)
-    CATEGORY = CATEGORY_DEV
-    OUTPUT_NODE = False
-    FUNCTION = "pass_through"
-
-    def pass_through(self, rin=None):
-        return {"ui": {"text": "<display>"}, "result": (rin,)}
-
-
-class fot_test_NoneModel:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {}
-
-    RETURN_TYPES = ("MODEL",)
-    RETURN_NAMES = ("model",)
-    FUNCTION = "execute"
-    CATEGORY = CATEGORY_TEST
-
-    def execute(self):
-        return (None,)
-
-class fot_test_NoneVAE:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {}
-
-    RETURN_TYPES = ("VAE",)
-    RETURN_NAMES = ("vae",)
-    FUNCTION = "execute"
-    CATEGORY = CATEGORY_TEST
-
-    def execute(self):
-        return (None,)
-
-class fot_test_NoneConditioning:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {}
-
-    RETURN_TYPES = ("CONDITIONING",)
-    RETURN_NAMES = ("cond",)
-    FUNCTION = "execute"
-    CATEGORY = CATEGORY_TEST
-
-    def execute(self):
-        return (None,)
-
-class fot_test_NoneImage:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {}
-
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("images",)
-    FUNCTION = "execute"
-    CATEGORY = CATEGORY_TEST
-
-    def execute(self):
-        return (None,)
 
 # #############################################################################
 # this is a modified comfyui-easy-use:whileLoopStart
@@ -305,6 +247,10 @@ class fot_PlayStart:
             print(f"* will construct new play")
             scenes = [kwargs.get("scene_%d" % i, None) for i in range(1, 3)]
             sequence_batches = construct_sequence_batches(model, vae, title, positive, negative, seed, filename_base, fps, width, height, frames_count_per_batch, scenes, data=None)
+
+            print(f"created batches: '{len(sequence_batches)}")
+            for batch in sequence_batches:
+                print(f" - [ {batch['frames_first']} , {batch['frames_last']} ]")
 
             batch_current = sequence_batches.pop(0)
             beat_current = batch_current["beat"]
@@ -427,6 +373,7 @@ class fot_PlayContinue:
         batch_current = sequence_batches.pop(0)
         batch_index_play = batch_current["index_play"]
         print(f"* batch_current = {batch_index_play}")
+        print(f"      - filename = {batch_current['filename']}")
         # if not latent_previous is None:
         batch_current["latent_previous"] = latent_previous
         
@@ -708,387 +655,6 @@ class fot_BatchData:
                 batch["filename"],
             )
 
-
-# #############################################################################
-# Start from comfyui_essentials
-# #############################################################################
-
-# modified version of comfyui_essentials:misc.DisplayAny
-class fot_test_DisplayInfo:
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "input": (("*",{})),
-            },
-        }
-
-    @classmethod
-    def VALIDATE_INPUTS(s, input_types):
-        return True
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_TYPES = ("display",)
-    FUNCTION = "execute"
-    OUTPUT_NODE = True
-
-    CATEGORY = CATEGORY_TEST
-
-    def make_shapes_info_list(self, tensor, prefix):
-        text_array = []
-        # if isinstance(tensor, dict):
-        #     for k in tensor:
-        #         text_array.extend(self.make_shapes_info_list(tensor[k]))
-        # elif isinstance(tensor, list):
-        #     for i in range(len(tensor)):
-        #         text_array.extend(self.make_shapes_info_list(tensor[i]))
-        # el
-        if hasattr(tensor, 'shape'):
-            text_array.append(prefix+str(list(tensor.shape)))
-        else:
-            text_array.append(prefix+"<no shape found>")
-        return text_array
-
-    def make_list(self, input, level, prefix):
-        if level <= 0: return []
-        text = []
-        if isinstance(input, torch.Tensor):
-            text.append(prefix+"torch.Tensor:")
-            text.extend(self.make_shapes_info_list(input, prefix+"       "))
-        elif isinstance(input, list):
-            text.append(prefix+f"list ({len(input)}):")
-            for v in input:
-                text.extend(self.make_list(v, level-1, prefix+"       "))
-        elif isinstance(input, dict):
-            text.append(prefix+f"dict ({len(input)}):")
-            for k, v in input.items():
-                text.append(prefix+f"  - {k}:")
-                text.extend(self.make_list(v, level-1, prefix+"       "))
-        else:
-            text.append(prefix+f"other {type(input).__name__}:")
-            text.append(prefix+"       "+str(input))
-
-        return text
-
-    def execute(self, input):
-        text = self.make_list(input, 3, "")
-
-        # for i in text:
-        #     print(f"[{type(i).__name__}] = {str(i)}")
-
-        display = "\n".join(text)
-
-        return {"ui": {"text": display}, "result": (display,)}
-
-# #############################################################################
-# End from comfyui_essentials
-# #############################################################################
-
-# #############################################################################
-# Start from RES4LYF
-# #############################################################################
-
-# #############################################################################
-# this is a modified RES4LYF:latent_transfer_state_info
-class fot_LatentTransferStateInfo_Lenient:
-    def __init__(self):
-        pass
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "latent_to":   ("LATENT", ),      
-            },
-            "optional": {
-                "latent_from": ("LATENT", ),
-            }
-        }
-
-    RETURN_TYPES = ("LATENT",)
-    RETURN_NAMES = ("latent",)
-    FUNCTION     = "main"
-    CATEGORY     = CATEGORY_DEV
-
-    def main(self, latent_to, latent_from=None):
-        # state_info = []
-        # if not latent_from is None:
-        #     if not 'state_info' in latent_from:
-        #         raise ValueError("No 'state_info' in latent_from")
-        #     state_info = latent_from['state_info']
-        # latent_to['state_info'] = copy.deepcopy(state_info)
-        # return (latent_to,)
-        if not latent_from is None:
-            if 'state_info' in latent_from:
-                state_info = latent_from['state_info']
-                latent_to['state_info'] = copy.deepcopy(state_info)
-        return (latent_to,)
-
-# #############################################################################
-# this is a modified RES4LYF:nodes_latents.latent_display_state_info
-
-class fot_test_DisplayLatent_Lenient:
-    def __init__(self):
-        pass
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                    "latent": ("LATENT", ),      
-                     },
-                }
-
-    RETURN_TYPES = ("STRING",)
-    FUNCTION     = "execute"
-    CATEGORY     = CATEGORY_TEST
-    OUTPUT_NODE  = True
-
-    def execute(self, latent):
-        text = ""
-        if latent is None:
-            text = "latent is None"
-        elif not 'state_info' in latent:
-            text = "No 'state_info' in latent"
-        else:
-            for key, value in latent['state_info'].items():
-                if isinstance(value, torch.Tensor):
-                    if value.numel() == 0:
-                        value_text = "empty tensor"
-                    elif value.numel() == 1:
-                        if value.dtype == torch.bool:
-                            value_text = f"bool({value.item()})"
-                        else:
-                            value_text = f"str({value.item():.3f}), dtype: {value.dtype}"
-                    else:
-                        shape_str = str(list(value.shape)).replace(" ", "")
-                        dtype = value.dtype
-
-                        if torch.is_floating_point(value) is False:
-                            if value.dtype == torch.bool:
-                                value_text = f"shape: {shape_str}, dtype: {dtype}, true: {value.sum().item()}, false: {(~value).sum().item()}"
-                            else:
-                                max_val = value.float().max().item()
-                                min_val = value.float().min().item()
-                                value_text = f"shape: {shape_str}, dtype: {dtype}, max: {max_val}, min: {min_val}"
-                        else:
-                            mean = value.float().mean().item()
-                            std = value.float().std().item()
-                            value_text = f"shape: {shape_str}, dtype: {dtype}, mean: {mean:.3f}, std: {std:.3f}"
-                else:
-                    value_text = str(value)
-
-                text += f"{key}: {value_text}\n"
-
-        return {"ui": {"text": text}, "result": (text,)}
-
-# #############################################################################
-# End from RES4LYF
-# #############################################################################
-
-# #############################################################################
-# Start from comfyui core
-# #############################################################################
-
-class fot_SubStepsKSampler_old:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "model": ("MODEL", { "tooltip": "The model used for denoising the input latent."}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
-                "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
-                "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
-                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, { "tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
-                "scheduler": (comfy.samplers.KSampler.SCHEDULERS, { "tooltip": "The scheduler controls how noise is gradually removed to form the image."}),
-                "positive": ("CONDITIONING", { "tooltip": "The conditioning describing the attributes you want to include in the image."}),
-                "negative": ("CONDITIONING", { "tooltip": "The conditioning describing the attributes you want to exclude from the image."}),
-                "latent_image": ("LATENT", { "tooltip": "The latent image to denoise."}),
-                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling."}),
-            },
-            "optional": {
-                "step_first": ("INT", { "default": 1, "min": 1, "tooltip": "The first step to sample (must be in [1 .. <code>steps</code>]"}),
-                "step_count": ("INT", {"default": -1, "min": -1, "tooltip": "The number of steps to sample (<code>step_first + step_count &lt;= steps</code>, -1 = all remaining)."}),
-            } 
-        }
-
-    RETURN_TYPES = ("LATENT",)
-    OUTPUT_TOOLTIPS = ("The denoised latent.",)
-    FUNCTION = "sample"
-
-    CATEGORY = CATEGORY_DEV
-    DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image. Allows to run partial sub-steps of the denoising process.<br /><b>Note: indexes are 1 based!</b>"
-
-    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, step_first=1, step_count=-1, denoise=1.0):
-        print(f"## sample")
-        print(f"* steps = {steps}")
-        print(f"* step_first = {step_first}")
-        if step_first < 1:
-            raise ValueError("step_first may not be smaller than one")
-        start_step = step_first - 1
-        print(f"* start_step = {start_step}")
-        if step_count == -1:
-            step_count = steps - start_step
-        print(f"* step_count = {step_count}")
-        last_step = start_step + step_count - 1
-        print(f"* last_step = {last_step}")
-        if last_step > steps:
-            # be permissive and restrict to available steps
-            # raise ValueError("step_count is too high")
-            last_step = steps
-            print(f"==> last_step = {last_step}")
-        
-        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_step=start_step, last_step=last_step, denoise=denoise)
-
-
-def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    latent_image = latent["samples"]
-    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
-
-    if disable_noise:
-        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
-    else:
-        batch_inds = latent["batch_index"] if "batch_index" in latent else None
-        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
-
-    noise_mask = None
-    if "noise_mask" in latent:
-        noise_mask = latent["noise_mask"]
-
-    callback = latent_preview.prepare_callback(model, steps)
-    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
-    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
-                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
-    out = latent.copy()
-    out["samples"] = samples
-    return (out, )
-
-# largely based on Comfyui core: KSampler
-class fot_SubStepsKSampler:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "model": ("MODEL", {"tooltip": "The model used for denoising the input latent."}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
-                "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
-                "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
-                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
-                "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"tooltip": "The scheduler controls how noise is gradually removed to form the image."}),
-                "positive": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to include in the image."}),
-                "negative": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to exclude from the image."}),
-                "latent_image": ("LATENT", {"tooltip": "The latent image to denoise."}),
-                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling."}),
-            },
-            "optional": {
-                "step_first": ("INT", {"default": 1, "min": 1,
-                                       "tooltip": "The first step to sample (must be in [1 .. <code>steps</code>]"}),
-                "step_count": ("INT", {"default": -1, "min": -1,
-                                       "tooltip": "The number of steps to sample (<code>step_first + step_count &lt;= steps</code>, -1 = all remaining)."}),
-            }
-        }
-
-    RETURN_TYPES = ("LATENT",)
-    OUTPUT_TOOLTIPS = ("The denoised latent.",)
-    FUNCTION = "sample"
-
-    CATEGORY = CATEGORY_DEV
-    DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
-
-    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, step_first=1, step_count=-1, denoise=1.0):
-        # print(f"## sample")
-        # print(f"* steps = {steps}")
-        # print(f"* step_first = {step_first}")
-        # if step_first < 1:
-        #     raise ValueError("step_first may not be smaller than one")
-        # start_step = step_first - 1
-        # print(f"* start_step = {start_step}")
-        # if step_count == -1:
-        #     step_count = steps - start_step
-        # print(f"* step_count = {step_count}")
-        # last_step = start_step + step_count# last step exclusive
-        # print(f"* last_step = {last_step}")
-        # if last_step > steps:
-        #     # be permissive and restrict to available steps
-        #     # raise ValueError("step_count is too high")
-        #     last_step = steps
-        #     print(f"==> last_step = {last_step}")
-        print(f"## sample")
-        print(f"* steps = {steps}")
-        print(f"* step_first = {step_first}")
-        if step_first < 1:
-            raise ValueError("step_first may not be smaller than one")
-        start_step = step_first
-        print(f"* start_step = {start_step}")
-        if step_count == -1:
-            step_count = steps - start_step + 1
-        print(f"* step_count = {step_count}")
-        last_step = start_step + step_count # last step exclusive
-        print(f"* last_step = {last_step}")
-        if last_step > steps:
-            # be permissive and restrict to available steps
-            # raise ValueError("step_count is too high")
-            last_step = steps
-            print(f"==> last_step = {last_step}")
- 
-        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, start_step=start_step, last_step=last_step)
-
-
-# #############################################################################
-# End from comfyui core
-# #############################################################################
-
-# #############################################################################
-# Start from comfyui comfy_extras
-# #############################################################################
-
-def reshape_latent_to(target_shape, latent, repeat_batch=True):
-    if latent.shape[1:] != target_shape[1:]:
-        latent = comfy.utils.common_upscale(latent, target_shape[-1], target_shape[-2], "bilinear", "center")
-    if repeat_batch:
-        return comfy.utils.repeat_to_batch_size(latent, target_shape[0])
-    else:
-        return latent
-
-# slightly modified LatentBatch
-class fot_LatentBatch_Lenient:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "samples1": ("LATENT",),
-            },
-            "optional": {
-                "samples2": ("LATENT",),
-            }
-        }
-
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "batch"
-
-    CATEGORY = CATEGORY_LATENT
-
-    def batch(self, samples1, samples2=None):
-        samples_out = samples1.copy()
-
-        if samples2 is None:
-            return (samples1,)
-        
-        s1 = samples1["samples"]
-        s2 = samples2["samples"]
-        s2 = reshape_latent_to(s1.shape, s2, repeat_batch=False)
-        s = torch.cat((s1, s2), dim=0)
-        samples_out["samples"] = s
-        samples_out["batch_index"] = samples1.get("batch_index", [x for x in range(0, s1.shape[0])]) + samples2.get("batch_index", [x for x in range(0, s2.shape[0])])
-
-        return (samples_out,)
-
-# #############################################################################
-# End from comfyui comfy_extras
-# #############################################################################
-
 # #############################################################################
 NODE_CLASS_MAPPINGS = {
     "fot_PlayStart": fot_PlayStart,
@@ -1099,20 +665,6 @@ NODE_CLASS_MAPPINGS = {
     "fot_SceneBeatData": fot_SceneBeatData,
     "fot_BatchData": fot_BatchData,
     "fot_PlayContinue": fot_PlayContinue,
-
-    "fot_SubStepsKSampler": fot_SubStepsKSampler,
-
-    "fot_LatentTransferStateInfo_Lenient": fot_LatentTransferStateInfo_Lenient,
-    "fot_LatentBatch_Lenient": fot_LatentBatch_Lenient,
-
-    "fot_NamedReroute": fot_NamedReroute,
-
-    "fot_test_DisplayLatent_Lenient": fot_test_DisplayLatent_Lenient,
-    "fot_test_DisplayInfo": fot_test_DisplayInfo,
-    "fot_test_NoneModel": fot_test_NoneModel,
-    "fot_test_NoneVAE": fot_test_NoneVAE,
-    "fot_test_NoneConditioning": fot_test_NoneConditioning,
-    "fot_test_NoneImage": fot_test_NoneImage,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_PlayStart": "Play (Start)",
@@ -1123,18 +675,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_SceneBeatData": "Scene-Beat Data",
     "fot_BatchData": "Batch Data",
     "fot_PlayContinue": "Play (Continue)",
-
-    "fot_SubStepsKSampler": "KSampler (Sub-Steps)",
-
-    "fot_LatentTransferStateInfo_Lenient": "Latent Transfer State (Lenient)",
-    "fot_LatentBatch_Lenient": "LatentBatch (Lenient)",
-
-    "fot_NamedReroute": "Named Reroute",
-
-    "fot_test_DisplayLatent_Lenient": "🔧 Display Latent State (Lenient)",
-    "fot_test_DisplayInfo": "🔧 Display Info",
-    "fot_test_NoneModel": "🔧 No Model",
-    "fot_test_NoneVAE": "🔧 No VAE",
-    "fot_test_NoneConditioning": "🔧 No Conditioning",
-    "fot_test_NoneImage": "🔧 No Image",
 }
