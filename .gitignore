@@ -3,3 +3,4 @@ workspace/**
 __pycache__/**
 py/*/__pycache__/**
 notes.md
+comfyui_play_traversal.code-workspace
