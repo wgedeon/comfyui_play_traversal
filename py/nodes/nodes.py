@@ -239,8 +239,8 @@ class fot_PlayStart:
             inputs["optional"]["act_%d" % i] = ("PLAY_ACT",)
         return inputs
 
-    RETURN_TYPES = ("FLOW_CONTROL", "BATCH", any_type, "MODEL", "VAE", "PLAY", "PLAY_ACT", "SCENE", "SCENE_BEAT", "BATCH", "LATENT",)
-    RETURN_NAMES = ("flow", "sequence_batches", "data", "model", "vae", "play_current", "act_current", "scene_current", "beat_current", "batch_current", "latent_previous")
+    RETURN_TYPES = ("FLOW_CONTROL", "BATCH", any_type, "MODEL", "CLIP", "VAE", "PLAY", "PLAY_ACT", "SCENE", "SCENE_BEAT", "BATCH", "LATENT",)
+    RETURN_NAMES = ("flow", "sequence_batches", "data", "model", "clip", "vae", "play_current", "act_current", "scene_current", "beat_current", "batch_current", "latent_previous")
     FUNCTION = "play_start"
 
     CATEGORY = CATEGORY
