@@ -207,8 +207,8 @@ class fot_PlayStart:
                 "clip": ("CLIP",),
                 "vae": ("VAE",),
                 "title": ("STRING", {"default": "Play title"}),
-                "positive": ("CONDITIONING",),
-                "negative": ("CONDITIONING",),
+                "positive": ("STRING",),
+                "negative": ("STRING",),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
                 "filename_base": ("STRING", {"default": "fot_play"}),
                 # TODO how to limit fps to just a well known list
@@ -441,7 +441,7 @@ class fot_PlayData:
             }
         }
 
-    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "CONDITIONING", "CONDITIONING", "INT",)
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "STRING", "STRING", "INT",)
     RETURN_NAMES = ("model", "clip", "vae", "title", "fps", "width", "height", "duration_secs", "frames_count", "positive", "negative", "seed",)
     FUNCTION = "expose_data"
 
@@ -477,8 +477,8 @@ class fot_PlayAct:
         return {
             "required": {
                 "title": ("STRING", {"default": "Act #1"}),
-                "positive": ("CONDITIONING",),
-                "negative": ("CONDITIONING",),
+                "positive": ("STRING",),
+                "negative": ("STRING",),
                 "filename_part": ("STRING", {"default": "#1"}),
             },
             "optional": {
@@ -528,7 +528,7 @@ class fot_PlayActData:
             }
         }
 
-    RETURN_TYPES = ("STRING", "CONDITIONING", "CONDITIONING", "STRING", "INT",)
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "INT",)
     RETURN_NAMES = ("title", "positive", "negative", "filename_part", "frames_count",)
     FUNCTION = "expose_data"
 
@@ -557,8 +557,8 @@ class fot_Scene:
         return {
             "required": {
                 "title": ("STRING", {"default": "Scene #1"}),
-                "positive": ("CONDITIONING",),
-                "negative": ("CONDITIONING",),
+                "positive": ("STRING",),
+                "negative": ("STRING",),
                 "filename_part": ("STRING", {"default": "#1"}),
             },
             "optional": {
@@ -607,7 +607,7 @@ class fot_SceneData:
             }
         }
 
-    RETURN_TYPES = ("STRING", "CONDITIONING", "CONDITIONING", "STRING", "INT",)
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "INT",)
     RETURN_NAMES = ("title", "positive", "negative", "filename_part", "frames_count",)
     FUNCTION = "expose_data"
 
@@ -639,8 +639,8 @@ class fot_SceneBeat:
                 "filename_part": ("STRING", {"default": "b1"}),
                 # FIXME how to limit fps to just a well known list
                 "duration_secs": ("FLOAT", {"default": 1, "min": 1, "max": 100000, "step": 0.5}),
-                "positive": ("CONDITIONING",),
-                "negative": ("CONDITIONING",),
+                "positive": ("STRING",),
+                "negative": ("STRING",),
             },
             "optional": {
             },
@@ -681,7 +681,7 @@ class fot_SceneBeatData:
             }
         }
 
-    RETURN_TYPES = ("STRING", "INT", "CONDITIONING", "CONDITIONING",)
+    RETURN_TYPES = ("STRING", "INT", "STRING", "STRING",)
     RETURN_NAMES = ("title", "duration_secs", "positive", "negative",)
     FUNCTION = "expose_data"
 
