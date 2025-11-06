@@ -52,20 +52,25 @@ title: Play tree model
 erDiagram
     direction LR
 
-    PLAY ||--o{ SCENE : has
+    PLAY ||--o{ ACT : has
+    ACT ||--o{ SCENE : has
     SCENE ||--o{ BEAT : has  
     BEAT ||--o{ BATCH : has
 ```
 
 * the **Play** is the full length of the production; it holds the parameters that are common to the full project; it is made of:
 
-* **Scene**s, there is typically transition between scenes -- a change in locations, the entrance or exit of a character, etc. that would result in crossfade, cut, fade_to_black, etc.
+* **Act**s, which correspond to the chapters, or arcs.
+
+* Acts are made up of a sequence of **Scene**s. There is typically transition between scenes -- a change in locations, the entrance or exit of a character, etc. that would result in crossfade, cut, fade_to_black, etc.
 
 * Scenes are sequences of **Beat**s, which is a general emotional/ mood/ energetic segments of the scene, with consistent visual and audio characteristics, the remainder of the layout beeing similar (consistent visual and audio characteristics). The background music may be different as well (Tension, Anxiety, Mystery, Intrigue, Joy, Triumph, ...) A beat has a length in seconds (this is the only parameter that impacts the video total time).
 
 * In order to fit the processing power of the underlying machine, a scene beat is broken down into a sequence of **Batch**es (batches are technical processing units constrained by hardware limitations), each batch covering a part of the beat, and tailored to the memory limitations (number of frames in the video chunk, number of steps in the sampling).
 
 ### Implementation
+
+```TODO: update diagrams, add Act```
 
 #### Node `Scene-Beat`
 
