@@ -441,18 +441,19 @@ class fot_PlayData:
             }
         }
 
-    RETURN_TYPES = ("MODEL","VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "CONDITIONING", "CONDITIONING", "INT",)
-    RETURN_NAMES = ("model", "vae", "title", "fps", "width", "height", "duration_secs", "frames_count", "positive", "negative", "seed",)
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING", "FLOAT", "INT", "INT", "INT", "INT", "CONDITIONING", "CONDITIONING", "INT",)
+    RETURN_NAMES = ("model", "clip", "vae", "title", "fps", "width", "height", "duration_secs", "frames_count", "positive", "negative", "seed",)
     FUNCTION = "expose_data"
 
     CATEGORY = CATEGORY
 
     def expose_data(self, play=None, **kwargs):
         if play is None:
-            return (None,None,None,None,None,None,None,None,None,None,None,)
+            return (None,None,None,None,None,None,None,None,None,None,None,None,)
         else:
             return (
                 play["model"],
+                play["clip"],
                 play["vae"],
                 play["title"],
                 play["fps"],
