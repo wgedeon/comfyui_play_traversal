@@ -745,24 +745,34 @@ class fot_BatchData:
 NODE_CLASS_MAPPINGS = {
     "fot_PlayStart": fot_PlayStart,
     "fot_PlayData": fot_PlayData,
+    "fot_PlayContinue": fot_PlayContinue,
+
     "fot_PlayAct": fot_PlayAct,
     "fot_PlayActData": fot_PlayActData,
+
     "fot_Scene": fot_Scene,
     "fot_SceneData": fot_SceneData,
+
     "fot_SceneBeat": fot_SceneBeat,
     "fot_SceneBeatData": fot_SceneBeatData,
+
     "fot_BatchData": fot_BatchData,
-    "fot_PlayContinue": fot_PlayContinue,
+
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_PlayStart": "Play (Start)",
     "fot_PlayData": "Play Data",
+    "fot_PlayContinue": "Play (Continue)",
+
     "fot_PlayAct": "Play-Act",
     "fot_PlayActData": "Play-Act Data",
+
     "fot_Scene": "Scene",
     "fot_SceneData": "Scene Data",
+
     "fot_SceneBeat": "Scene-Beat",
     "fot_SceneBeatData": "Scene-Beat Data",
+
     "fot_BatchData": "Batch Data",
-    "fot_PlayContinue": "Play (Continue)",
+
 }
