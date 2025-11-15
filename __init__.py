@@ -6,6 +6,10 @@ import os
 import folder_paths
 import importlib
 
+import server
+from aiohttp import web
+from pathlib import Path
+
 cwd_path = os.path.dirname(os.path.realpath(__file__))
 comfy_path = folder_paths.base_path
 
@@ -25,61 +29,29 @@ for module_name in nodes_list:
     NODE_CLASS_MAPPINGS = {**NODE_CLASS_MAPPINGS, **imported_module.NODE_CLASS_MAPPINGS}
     NODE_DISPLAY_NAME_MAPPINGS = {**NODE_DISPLAY_NAME_MAPPINGS, **imported_module.NODE_DISPLAY_NAME_MAPPINGS}
 
-# Styles
-# styles_path = os.path.join(os.path.dirname(__file__), "styles")
-# samples_path = os.path.join(os.path.dirname(__file__), "styles", "samples")
-# if os.path.exists(styles_path):
-#     if not os.path.exists(samples_path):
-#         os.mkdir(samples_path)
-# else:
-#     os.mkdir(styles_path)
-#     os.mkdir(samples_path)
+@server.PromptServer.instance.routes.get("/comfyui_play_traversal/get_backdrops")
+async def get_backdrops(request):
+    """
+    Custom endpoint to fetch the backdrop names in a workspace.
+    """
+    try:
+        home_dir = folder_paths.get_output_directory() # get_user_directory()
+        workspaces_dir = os.path.join(home_dir, 'workspaces')
+        workspace_codename = request.query.get('workspace_codename')
+        workspace_dir = os.path.join(workspaces_dir, workspace_codename)
+        backdrops_dir = os.path.join(workspace_dir, "scene_backdrops")
 
-# # Add custom styles example
-# example_path = os.path.join(styles_path, "your_styles.json.example")
-# if not os.path.exists(example_path):
-#     import json
-#     data = [
-#         {
-#             "name": "Example Style",
-#             "name_cn": "示例样式",
-#             "prompt": "(masterpiece), (best quality), (ultra-detailed), {prompt} ",
-#             "negative_prompt": "text, watermark, logo"
-#         },
-#     ]
-#     # Write to file
-#     with open(example_path, 'w', encoding='utf-8') as f:
-#         json.dump(data, f, indent=4, ensure_ascii=False)
+        try:
+            backdrop_folders = [entry.name for entry in Path(backdrops_dir).iterdir() 
+                    if entry.is_dir() and not entry.name.startswith('.')]
+            if len(backdrop_folders) == 0:
+                backdrop_folders = [ ]
+        except OSError as e:
+            print(f" - Error reading workspace backdrops: {e}")
+            backdrop_folders = [ ]
 
-
-# web_default_version = 'v2'
-# # web directory
-# config_path = os.path.join(cwd_path, "config.yaml")
-# if os.path.isfile(config_path):
-#     with open(config_path, 'r') as f:
-#         data = yaml.load(f, Loader=yaml.FullLoader)
-#         if data and "WEB_VERSION" in data:
-#             directory = f"web_version/{data['WEB_VERSION']}"
-#             with open(config_path, 'w') as f:
-#                 yaml.dump(data, f)
-#         elif web_default_version != 'v1':
-#             if not data:
-#                 data = {'WEB_VERSION': web_default_version}
-#             elif 'WEB_VERSION' not in data:
-#                 data = {**data, 'WEB_VERSION': web_default_version}
-#             with open(config_path, 'w') as f:
-#                 yaml.dump(data, f)
-#             directory = f"web_version/{web_default_version}"
-#         else:
-#             directory = f"web_version/v1"
-#     if not os.path.exists(os.path.join(cwd_path, directory)):
-#         print(f"web root {data['WEB_VERSION']} not found, using default")
-#         directory = f"web_version/{web_default_version}"
-#     WEB_DIRECTORY = directory
-# else:
-#     directory = f"web_version/{web_default_version}"
-#     WEB_DIRECTORY =  directory
-# print(f'\033[34m[comfyui_play_traversal] server: \033[0mv{__version__} \033[92mLoaded\033[0m')
-# print(f'\033[34m[comfyui_play_traversal] web root: \033[0m{os.path.join(cwd_path, directory)} \033[92mLoaded\033[0m')
+        return web.json_response({"value": backdrop_folders})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']
