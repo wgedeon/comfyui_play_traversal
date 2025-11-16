@@ -25,7 +25,6 @@ handler = logging.StreamHandler()
 
 logger.addHandler(handler)
 
-
 CATEGORY = "Feller of Trees/Play Traversal"
 
 MY_CLASS_TYPES = ['fot_PlayStart', 'fot_PlayContinue']
