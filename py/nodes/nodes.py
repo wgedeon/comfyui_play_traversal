@@ -5,6 +5,13 @@ from datetime import datetime
 import json
 import math
 import copy
+import folder_paths
+import os
+from pathlib import Path
+from PIL import Image, ImageOps, ImageSequence
+import numpy as np
+import node_helpers
+import torch
 
 try: # flow
     from comfy_execution.graph_utils import GraphBuilder, is_link
@@ -626,6 +633,188 @@ class fot_SceneData:
             )
 
 # #############################################################################
+class fot_SceneBackdrop:
+
+    def __init__(self):
+        self.compress_level = 4
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "workspace": ( "WORKSPACE", ),
+                "name": ( "STRING", {"default": "backdrop"}, ),
+            },
+            "optional": {
+                "positive": ( "STRING", {"default": ""}, ),
+                "negative": ( "STRING", {"default": ""}, ),
+                "image": ( "IMAGE", ),
+                "seed": ( "INT", {"default": 0}, ),
+            },
+            "hidden": {
+            }
+        }
+
+    RETURN_TYPES = ()
+    RETURN_NAMES = ()
+    FUNCTION = "construct_data"
+    OUTPUT_NODE = True
+
+    CATEGORY = CATEGORY
+
+    def construct_data(self, workspace, name, positive="", negative="", image=None, seed=0, **kwargs):
+
+        home_dir = folder_paths.get_output_directory() # get_user_directory()
+        workspaces_dir = os.path.join(home_dir, 'workspaces')
+        workspace_dir = os.path.join(workspaces_dir, workspace["codename"])
+        scene_backdrops_dir = os.path.join(workspace_dir, "scene_backdrops")
+        scene_backdrop_dir = os.path.join(scene_backdrops_dir, name)
+
+        Path(scene_backdrop_dir).mkdir(parents=True, exist_ok=True)
+
+        image_path = None
+        # save image get code from existing save image
+        if not image is None:
+            print("will encode and save image")
+            image_path = os.path.join(scene_backdrop_dir, "backdrop.png")
+            i = 255. * image[0].cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            img.save(image_path, compress_level=self.compress_level)
+
+        # save backdrop json
+        json_path = os.path.join(scene_backdrop_dir, "backdrop.json")
+        backdrop = {
+            "name": name,
+            "positive": positive,
+            "negative": negative,
+            "seed": seed,
+            "path": image_path,
+        }
+        try:
+            with open(json_path, 'w') as f:
+                json.dump(backdrop, f, indent=2)
+        except IOError as e:
+            print(f" - Error saving {json_path}: {e}")
+
+        # output = {
+        #     "name": name,
+        #     "positive": positive,
+        #     "negative": negative,
+        #     "image": image,
+        #     "image_path": image_path,
+        # }
+        # return (output,)
+        return ()
+
+# #############################################################################
+class fot_SceneBackdropData:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "workspace": ( "WORKSPACE", ),
+            },
+            "optional": {
+                "backdrop_name": ("STRING", {"default": "", "forceInput": False}),
+            },
+            "hidden": {
+            }
+        }
+
+    RETURN_TYPES = ("STRING","STRING","STRING","IMAGE","MASK","INT","STRING",)
+    RETURN_NAMES = ("name","positive","negative","backdrop_image","backdrop_image_mask","backdrop_image_seed","image_path",)
+    FUNCTION = "expose_data"
+
+    CATEGORY = CATEGORY
+
+    def expose_data(self, workspace, backdrop_name=None, **kwargs):
+        if backdrop_name is None:
+            return (None,None,None,None,None,None,None,)
+        else:
+            workspace_codename = workspace["codename"]
+            # load backdrop data
+            home_dir = folder_paths.get_output_directory() # get_user_directory()
+            workspaces_dir = os.path.join(home_dir, 'workspaces')
+            workspace_dir = os.path.join(workspaces_dir, workspace_codename)
+            backdrops_dir = os.path.join(workspace_dir, "scene_backdrops")
+            backdrop_dir = os.path.join(backdrops_dir, backdrop_name)
+            backdrop_json_filename = os.path.join(backdrop_dir, 'backdrop.json')
+
+            scene_backdrop = None
+            if os.path.exists(backdrop_json_filename):
+                try:
+                    with open(backdrop_json_filename, 'r') as f:
+                        scene_backdrop = json.load(f)
+                    print(f" - Loaded existing workspace.json with {len(scene_backdrop)} entries")
+                except (json.JSONDecodeError, IOError) as e:
+                    print(f" - Error loading workspace.json: {e}, creating new one")
+            else:
+                raise FileNotFoundError(f"Could not find backdrop file: {backdrop_json_filename}")
+
+            # load image
+            image_path = scene_backdrop["path"]
+
+
+            # start code from comfyui core:LoadImage
+            img = node_helpers.pillow(Image.open, image_path)
+
+            output_images = []
+            output_masks = []
+            w, h = None, None
+
+            excluded_formats = ['MPO']
+
+            for i in ImageSequence.Iterator(img):
+                i = node_helpers.pillow(ImageOps.exif_transpose, i)
+
+                if i.mode == 'I':
+                    i = i.point(lambda i: i * (1 / 255))
+                image = i.convert("RGB")
+
+                if len(output_images) == 0:
+                    w = image.size[0]
+                    h = image.size[1]
+
+                if image.size[0] != w or image.size[1] != h:
+                    continue
+
+                image = np.array(image).astype(np.float32) / 255.0
+                image = torch.from_numpy(image)[None,]
+                if 'A' in i.getbands():
+                    mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                    mask = 1. - torch.from_numpy(mask)
+                elif i.mode == 'P' and 'transparency' in i.info:
+                    mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
+                    mask = 1. - torch.from_numpy(mask)
+                else:
+                    mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+                output_images.append(image)
+                output_masks.append(mask.unsqueeze(0))
+
+            if len(output_images) > 1 and img.format not in excluded_formats:
+                output_image = torch.cat(output_images, dim=0)
+                output_mask = torch.cat(output_masks, dim=0)
+            else:
+                output_image = output_images[0]
+                output_mask = output_masks[0]
+            # end code from comfyui core:LoadImage
+
+            return (
+                scene_backdrop["name"],
+                scene_backdrop["positive"],
+                scene_backdrop["negative"],
+                output_image,
+                output_mask,
+                scene_backdrop["seed"],
+                scene_backdrop["path"],
+            )
+
+# #############################################################################
 class fot_SceneBeat:
 
     def __init__(self):
@@ -758,6 +947,8 @@ NODE_CLASS_MAPPINGS = {
 
     "fot_BatchData": fot_BatchData,
 
+    "fot_SceneBackdrop": fot_SceneBackdrop,
+    "fot_SceneBackdropData": fot_SceneBackdropData,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_PlayStart": "Play (Start)",
@@ -775,4 +966,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     "fot_BatchData": "Batch Data",
 
+    "fot_SceneBackdrop": "Scene Backdrop",
+    "fot_SceneBackdropData": "Scene Backdrop Data",
 }
