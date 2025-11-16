@@ -155,7 +155,7 @@ const selectBackdrop = function (node, backdrop_name) {
     console.log("(", node.id, ") will select backdrop: ", backdrop_name);
     console.log("(", node.id, ")   - node: ", node);
 
-    const widget = node.widgets[0];
+    const widget = node.widgets.find(w => w.name === WIDGET_NAME_BACKDROP);
     const folders = widget.options.values;
     if (folders.includes(backdrop_name)) {
         widget.value = backdrop_name;
