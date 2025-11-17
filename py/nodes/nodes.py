@@ -18,6 +18,8 @@ try: # flow
 except:
     GraphBuilder = None
 
+from ..libs.image_io import loadImage, loadMask, loadJson, storeImage, storeMask
+
 import logging
 logger = logging.getLogger('comfyui_play_traversal_logger')
 logger.setLevel(logging.DEBUG)
@@ -649,6 +651,7 @@ class fot_SceneBackdrop:
                 "positive": ( "STRING", {"default": ""}, ),
                 "negative": ( "STRING", {"default": ""}, ),
                 "image": ( "IMAGE", ),
+                "image_depthmap": ( "IMAGE", ),
                 "seed": ( "INT", {"default": 0}, ),
             },
             "hidden": {
@@ -662,7 +665,7 @@ class fot_SceneBackdrop:
 
     CATEGORY = CATEGORY
 
-    def construct_data(self, workspace, name, positive="", negative="", image=None, seed=0, **kwargs):
+    def construct_data(self, workspace, name, positive="", negative="", image=None, image_depthmap=None, seed=0, **kwargs):
 
         home_dir = folder_paths.get_output_directory() # get_user_directory()
         workspaces_dir = os.path.join(home_dir, 'workspaces')
@@ -673,13 +676,16 @@ class fot_SceneBackdrop:
         Path(scene_backdrop_dir).mkdir(parents=True, exist_ok=True)
 
         image_path = None
-        # save image get code from existing save image
         if not image is None:
             print("will encode and save image")
             image_path = os.path.join(scene_backdrop_dir, "backdrop.png")
-            i = 255. * image[0].cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            img.save(image_path, compress_level=self.compress_level)
+            storeImage(image, image_path)
+
+        image_depthmap_path = None
+        if not image_depthmap is None:
+            print("will encode and save image")
+            image_depthmap_path = os.path.join(scene_backdrop_dir, "backdrop_depthmap.png")
+            storeImage(image_depthmap, image_depthmap_path)
 
         # save backdrop json
         json_path = os.path.join(scene_backdrop_dir, "backdrop.json")
@@ -688,8 +694,10 @@ class fot_SceneBackdrop:
             "positive": positive,
             "negative": negative,
             "seed": seed,
-            "path": image_path,
+            "image_path": image_path,
+            "image_depthmap_path": image_depthmap_path,
         }
+        
         try:
             with open(json_path, 'w') as f:
                 json.dump(backdrop, f, indent=2)
@@ -717,23 +725,23 @@ class fot_SceneBackdropData:
         return {
             "required": {
                 "workspace": ( "WORKSPACE", ),
+                "backdrop_name": ("STRING", {"default": "", "forceInput": False}),
             },
             "optional": {
-                "backdrop_name": ("STRING", {"default": "", "forceInput": False}),
             },
             "hidden": {
             }
         }
 
-    RETURN_TYPES = ("STRING","STRING","STRING","IMAGE","MASK","INT","STRING",)
-    RETURN_NAMES = ("name","positive","negative","backdrop_image","backdrop_image_mask","backdrop_image_seed","image_path",)
+    RETURN_TYPES = ("STRING","STRING","STRING","IMAGE","STRING","MASK","IMAGE","STRING","INT",)
+    RETURN_NAMES = ("name","positive","negative","image","image_path","image_mask","image_depthmap","image_depthmap_path","image_seed",)
     FUNCTION = "expose_data"
 
     CATEGORY = CATEGORY
 
     def expose_data(self, workspace, backdrop_name=None, **kwargs):
         if backdrop_name is None:
-            return (None,None,None,None,None,None,None,)
+            return (None,None,None,None,None,None,None,None,None,)
         else:
             workspace_codename = workspace["codename"]
             # load backdrop data
@@ -755,62 +763,22 @@ class fot_SceneBackdropData:
             else:
                 raise FileNotFoundError(f"Could not find backdrop file: {backdrop_json_filename}")
 
-            # load image
-            image_path = scene_backdrop["path"]
+            image_path = scene_backdrop["image_path"]
+            image, image_mask = loadImage(image_path)
 
-
-            # start code from comfyui core:LoadImage
-            img = node_helpers.pillow(Image.open, image_path)
-
-            output_images = []
-            output_masks = []
-            w, h = None, None
-
-            excluded_formats = ['MPO']
-
-            for i in ImageSequence.Iterator(img):
-                i = node_helpers.pillow(ImageOps.exif_transpose, i)
-
-                if i.mode == 'I':
-                    i = i.point(lambda i: i * (1 / 255))
-                image = i.convert("RGB")
-
-                if len(output_images) == 0:
-                    w = image.size[0]
-                    h = image.size[1]
-
-                if image.size[0] != w or image.size[1] != h:
-                    continue
-
-                image = np.array(image).astype(np.float32) / 255.0
-                image = torch.from_numpy(image)[None,]
-                if 'A' in i.getbands():
-                    mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-                    mask = 1. - torch.from_numpy(mask)
-                elif i.mode == 'P' and 'transparency' in i.info:
-                    mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
-                    mask = 1. - torch.from_numpy(mask)
-                else:
-                    mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-                output_images.append(image)
-                output_masks.append(mask.unsqueeze(0))
-
-            if len(output_images) > 1 and img.format not in excluded_formats:
-                output_image = torch.cat(output_images, dim=0)
-                output_mask = torch.cat(output_masks, dim=0)
-            else:
-                output_image = output_images[0]
-                output_mask = output_masks[0]
-            # end code from comfyui core:LoadImage
+            image_depthmap_path = scene_backdrop["image_depthmap_path"]
+            image_depthmap, image_depthmap_mask = loadImage(image_depthmap_path)
 
             return (
                 scene_backdrop["name"],
                 scene_backdrop["positive"],
                 scene_backdrop["negative"],
-                output_image,
-                output_mask,
+                image,
+                scene_backdrop["image_path"],
+                image_mask,
+                image_depthmap,
+                scene_backdrop["image_depthmap_path"],
                 scene_backdrop["seed"],
-                scene_backdrop["path"],
             )
 
 # #############################################################################
