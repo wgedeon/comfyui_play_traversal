@@ -5,7 +5,7 @@ const WIDGET_NAME_BACKDROP = "backdrop_name";
 let common_extension = null;
 
 const findUpstreamWorkspace = async function (node) {
-    const DEBUG = true;
+    const DEBUG = false;
     if (DEBUG) console.log("[",node.id,"] findUpstreamWorkspace:");
     if (DEBUG) console.log("[",node.id,"]   - node: ", node);
     const slotIndex = node.findInputSlot("workspace");
@@ -113,7 +113,7 @@ const refreshBackdrops = async function (node) {
         folderWidget.options.values = []; // Will be populated dynamically
     }
 
-    console.log("refreshBackdrops, findUpstreamWorkspace: ", node.id);
+    // console.log("refreshBackdrops, findUpstreamWorkspace: ", node.id);
     let upstreamNode = await findUpstreamWorkspace(node);
 
     let workspace_codename = undefined;
@@ -136,7 +136,7 @@ const refreshBackdrops = async function (node) {
 
         if (response.ok) {
             const widget = node.widgets.find(w => w.name === WIDGET_NAME_BACKDROP);
-            console.log("(", node.id, ") got backdrops: ", data.value)
+            // console.log("(", node.id, ") got backdrops: ", data.value)
             const currentValue = widget.value;
             widget.options.values = data.value.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
             selectBackdrop(node, currentValue);
@@ -152,8 +152,8 @@ const refreshBackdrops = async function (node) {
 };
 
 const selectBackdrop = function (node, backdrop_name) {
-    console.log("(", node.id, ") will select backdrop: ", backdrop_name);
-    console.log("(", node.id, ")   - node: ", node);
+    // console.log("(", node.id, ") will select backdrop: ", backdrop_name);
+    // console.log("(", node.id, ")   - node: ", node);
 
     const widget = node.widgets.find(w => w.name === WIDGET_NAME_BACKDROP);
     const folders = widget.options.values;
@@ -206,7 +206,7 @@ app.registerExtension({
                 var node = graph.nodes[i];
                 if (node.type !== "fot_SceneBackdropData") continue;
                 const fullNode = app.graph.getNodeById(node.id);
-                console.log("setup existing node, refresh backdrops: ", fullNode.id);
+                // console.log("setup existing node, refresh backdrops: ", fullNode.id);
                 await refreshBackdrops(fullNode);
             }
 
@@ -271,7 +271,7 @@ app.registerExtension({
                 // await refreshBackdrops(thiz);
             };
 
-            console.log("(", node.id, ") onConfigure: will update backdrops");
+            // console.log("(", node.id, ") onConfigure: will update backdrops");
             await refreshBackdrops(this);
 
             onConfigure?.apply(this, arguments);
