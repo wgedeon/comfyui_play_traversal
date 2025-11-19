@@ -193,7 +193,6 @@ def loadJson(element_json_filename):
         try:
             with open(element_json_filename, 'r') as f:
                 character_pose_object = json.load(f)
-            print(f" - Loaded existing workspace.json with {len(character_pose_object)} entries")
             return character_pose_object
         except (json.JSONDecodeError, IOError) as e:
             print(f" - Error loading workspace.json: {e}, creating new one")

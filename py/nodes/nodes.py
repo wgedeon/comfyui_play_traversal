@@ -757,7 +757,6 @@ class fot_SceneBackdropData:
                 try:
                     with open(backdrop_json_filename, 'r') as f:
                         scene_backdrop = json.load(f)
-                    print(f" - Loaded existing workspace.json with {len(scene_backdrop)} entries")
                 except (json.JSONDecodeError, IOError) as e:
                     print(f" - Error loading workspace.json: {e}, creating new one")
             else:
