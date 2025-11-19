@@ -78,7 +78,6 @@ const findUpstreamWorkspace = async function (node) {
 };
 
 const findDownstreamNodes = async function (node) {
-    console.log("findDownstreamNodes:");
     const slotIndex = node.findOutputSlot("workspace");
     if (slotIndex == -1) {
         return [];
