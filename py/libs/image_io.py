@@ -188,6 +188,39 @@ def storeMask(mask, mask_path, invert=False):
     
     print(f"Mask saved as: {mask_path}")
 
+def storeImageLatent(latent, file_path):
+    """
+    Saves a ComfyUI LATENT dictionary to a file.
+    
+    Args:
+        latent (dict): The ComfyUI LATENT object, expected to have a 'samples' key.
+        file_path (str): The full path (including desired extension) where the latent should be saved.
+    """
+    if 'samples' not in latent:
+        raise ValueError("The provided latent does not contain the required 'samples' key.")
+    
+    # Save the entire latent dictionary
+    torch.save(latent, file_path)
+    print(f"Latent saved to: {file_path}")
+
+def loadImageLatent(file_path):
+    """
+    Loads a ComfyUI LATENT dictionary from a file.
+    
+    Args:
+        file_path (str): The full path to the saved latent file.
+    
+    Returns:
+        dict: The loaded ComfyUI LATENT dictionary.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The latent file was not found: {file_path}")
+    
+    # Load the latent dictionary. Map to CPU to avoid GPU loading issues.
+    latent = torch.load(file_path, map_location='cpu')
+    print(f"Latent loaded from: {file_path}")
+    return latent
+
 def loadJson(element_json_filename):
     if os.path.exists(element_json_filename):
         try:

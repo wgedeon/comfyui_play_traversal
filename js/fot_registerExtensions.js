@@ -14,10 +14,10 @@ const refreshBackdrops = async function (node) {
     }
 
     if (node.workspace_codename) {
-        console.log("refreshPoses, node.workspace_codename = ", node.workspace_codename);
+        console.log("refreshBackdrops, node.workspace_codename = ", node.workspace_codename);
     }
     else {
-        console.log("refreshPoses, node.workspace_codename is not set!");
+        console.log("refreshBackdrops, node.workspace_codename is not set!");
         return;
     }
 

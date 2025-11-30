@@ -12,13 +12,14 @@ from PIL import Image, ImageOps, ImageSequence
 import numpy as np
 import node_helpers
 import torch
+import comfy.samplers
 
 try: # flow
     from comfy_execution.graph_utils import GraphBuilder, is_link
 except:
     GraphBuilder = None
 
-from ..libs.image_io import loadImage, loadMask, loadJson, storeImage, storeMask
+from ..libs.image_io import loadImage, loadMask, loadJson, storeImage, storeMask, storeImageLatent, loadImageLatent
 
 import logging
 logger = logging.getLogger('comfyui_play_traversal_logger')
@@ -651,6 +652,7 @@ class fot_SceneBackdrop:
                 "positive": ( "STRING", {"default": ""}, ),
                 "negative": ( "STRING", {"default": ""}, ),
                 "image": ( "IMAGE", ),
+                "image_latent": ( "LATENT", ),
                 "image_depthmap": ( "IMAGE", ),
                 "seed": ( "INT", {"default": 0}, ),
             },
@@ -665,7 +667,7 @@ class fot_SceneBackdrop:
 
     CATEGORY = CATEGORY
 
-    def construct_data(self, workspace, name, positive="", negative="", image=None, image_depthmap=None, seed=0, **kwargs):
+    def construct_data(self, workspace, name, positive="", negative="", image=None, image_latent=None, image_depthmap=None, seed=0, **kwargs):
 
         home_dir = folder_paths.get_output_directory() # get_user_directory()
         workspaces_dir = os.path.join(home_dir, 'workspaces')
@@ -681,6 +683,12 @@ class fot_SceneBackdrop:
             image_path = os.path.join(scene_backdrop_dir, "backdrop.png")
             storeImage(image, image_path)
 
+        image_latent_path = None
+        if not image_latent is None:
+            print("will encode and save image latent")
+            image_latent_path = os.path.join(scene_backdrop_dir, "backdrop_latent.pt")
+            storeImageLatent(image_latent, image_latent_path)
+
         image_depthmap_path = None
         if not image_depthmap is None:
             print("will encode and save image")
@@ -695,6 +703,7 @@ class fot_SceneBackdrop:
             "negative": negative,
             "seed": seed,
             "image_path": image_path,
+            "image_latent_path": image_latent_path,
             "image_depthmap_path": image_depthmap_path,
         }
         
@@ -733,15 +742,15 @@ class fot_SceneBackdropData:
             }
         }
 
-    RETURN_TYPES = ("STRING","STRING","STRING","IMAGE","STRING","MASK","IMAGE","STRING","INT",)
-    RETURN_NAMES = ("name","positive","negative","image","image_path","image_mask","image_depthmap","image_depthmap_path","image_seed",)
+    RETURN_TYPES = ("STRING","STRING","STRING","IMAGE","STRING","LATENT","STRING","MASK","IMAGE","STRING","INT",)
+    RETURN_NAMES = ("name","positive","negative","image","image_path","image_latent","image_latent_path","image_mask","image_depthmap","image_depthmap_path","image_seed",)
     FUNCTION = "expose_data"
 
     CATEGORY = CATEGORY
 
     def expose_data(self, workspace, backdrop_name=None, **kwargs):
         if backdrop_name is None:
-            return (None,None,None,None,None,None,None,None,None,)
+            return (None,None,None,None,None,None,None,None,None,None,None,)
         else:
             workspace_codename = workspace["codename"]
             # load backdrop data
@@ -763,10 +772,16 @@ class fot_SceneBackdropData:
                 raise FileNotFoundError(f"Could not find backdrop file: {backdrop_json_filename}")
 
             image_path = scene_backdrop["image_path"]
-            image, image_mask = loadImage(image_path)
+            if not image_path is None:
+                image, image_mask = loadImage(image_path)
+
+            image_latent_path = scene_backdrop["image_latent_path"]
+            if not image_latent_path is None:
+                image_latent = loadImageLatent(image_latent_path)
 
             image_depthmap_path = scene_backdrop["image_depthmap_path"]
-            image_depthmap, image_depthmap_mask = loadImage(image_depthmap_path)
+            if not image_depthmap_path is None:
+                image_depthmap, image_depthmap_mask = loadImage(image_depthmap_path)
 
             return (
                 scene_backdrop["name"],
@@ -774,6 +789,8 @@ class fot_SceneBackdropData:
                 scene_backdrop["negative"],
                 image,
                 scene_backdrop["image_path"],
+                image_latent,
+                scene_backdrop["image_depthmap_path"],
                 image_mask,
                 image_depthmap,
                 scene_backdrop["image_depthmap_path"],
@@ -907,14 +924,13 @@ NODE_CLASS_MAPPINGS = {
 
     "fot_Scene": fot_Scene,
     "fot_SceneData": fot_SceneData,
+    "fot_SceneBackdrop": fot_SceneBackdrop,
+    "fot_SceneBackdropData": fot_SceneBackdropData,
 
     "fot_SceneBeat": fot_SceneBeat,
     "fot_SceneBeatData": fot_SceneBeatData,
 
     "fot_BatchData": fot_BatchData,
-
-    "fot_SceneBackdrop": fot_SceneBackdrop,
-    "fot_SceneBackdropData": fot_SceneBackdropData,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "fot_PlayStart": "Play (Start)",
@@ -926,12 +942,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     "fot_Scene": "Scene",
     "fot_SceneData": "Scene Data",
+    "fot_SceneBackdrop": "Scene Backdrop",
+    "fot_SceneBackdropData": "Scene Backdrop Data",
 
     "fot_SceneBeat": "Scene-Beat",
     "fot_SceneBeatData": "Scene-Beat Data",
 
     "fot_BatchData": "Batch Data",
-
-    "fot_SceneBackdrop": "Scene Backdrop",
-    "fot_SceneBackdropData": "Scene Backdrop Data",
 }
